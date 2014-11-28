@@ -2,8 +2,17 @@
  * Authors: Cruz, Teddy, Juanjo, & Spencer
  */
 
+/*
+ errors that could turn on the green LED:
+ 
+ go() throws if invalid input given
+ find_max() throws if no max found
+ find_toporbottom() throws if it can't figure out which is top or bottom 
+ */
+
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include <math.h>
 #include "m_general.h"
 #include "m_wii.h"
 
@@ -23,6 +32,20 @@ bool test = true;
 unsigned int data[12]; // = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}; for storing incoming wii data
 bool read_success; //determining whether or not the call to the wii was successfull or nah
 
+//variables for distance determining
+//int x1in; int y1in; int x2in; int y2in; int x3in; int y3in; int x4in; int y4in;
+int xin[4]; int yin[4];
+volatile int d12; volatile int d13; volatile int d14; volatile int d23; volatile int d24; volatile int d34;
+volatile int maxd; volatile int maxdp1; volatile int maxdp2; volatile int otherdp1; volatile int otherdp2; // bool maxfound;
+
+//variables for location points
+int cent[2]; int point1[2]; int point2[2];
+
+//variables for toporbototm
+//bool toporbottomfound = false;
+int dm[4][4] = {{0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}};
+int top;
+
 int main(void)
 {
     //prototype the setup functions
@@ -34,9 +57,14 @@ int main(void)
     //prototype functions to be used in main loop
     void go(char direction);
     void drivetest();
+    void buylocal();
     
     //prototype sub functions (not to be used in main)
     void timerswitch(bool on);
+    void filter_outliers();
+    void find_max();
+    void find_center();
+    void find_toporbottom();
     
     //prototype functions that I'm not sure where they'll go yet
     void wii_read(){};
@@ -59,9 +87,182 @@ int main(void)
             drivetest();
         } else {
             //do localization here
+            //buylocal();
         }
     }
     return 0;   /* never reached */
+}
+
+void find_distances(){
+    //find the distances between the points you took in
+    d12 = sqrt( pow((xin[1] - xin[0]) , 2) + pow((yin[1] - yin[0]) , 2) );
+    d13 = sqrt( pow((xin[2] - xin[0]) , 2) + pow((yin[2] - yin[0]) , 2) );
+    d14 = sqrt( pow((xin[3] - xin[0]) , 2) + pow((yin[3] - yin[0]) , 2) );
+    d23 = sqrt( pow((xin[2] - xin[1]) , 2) + pow((yin[2] - yin[0]) , 2) );
+    d24 = sqrt( pow((xin[3] - xin[1]) , 2) + pow((yin[3] - yin[1]) , 2) );
+    d34 = sqrt( pow((xin[3] - xin[2]) , 2) + pow((yin[3] - yin[2]) , 2) );
+    
+    //fill in the distance matrix
+    dm[1][0] = d12; dm[0][1] = d12;
+    dm[2][0] = d13; dm[0][2] = d13;
+    dm[3][0] = d14; dm[0][3] = d14;
+    dm[2][1] = d23; dm[1][2] = d23;
+    dm[3][1] = d24; dm[1][3] = d24;
+    dm[3][2] = d34; dm[2][3] = d34;
+}
+
+void filter_outliers(){
+    //don't do the calculations if there are less than two points. Just keep swimming.
+}
+
+void find_max(){
+    
+    maxd = 0;
+//    maxfound = false;
+    
+    if (d12 > maxd) {
+        maxd = d12;
+        maxdp1 = 1 - 1;
+        maxdp2 = 2 - 1;
+        otherdp1 = 3 - 1;
+        otherdp2 = 4 - 1;
+//        maxfound = true;
+    }
+    if (d13 > maxd) {
+        maxd = d13;
+        maxdp1 = 1 - 1;
+        maxdp2 = 3 - 1;
+        otherdp1 = 2 - 1;
+        otherdp2 = 4 - 1;
+//        maxfound = true;
+    }
+    if (d14 > maxd) {
+        maxd = d14;
+        maxdp1 = 1 - 1;
+        maxdp2 = 4 - 1;
+        otherdp1 = 2 - 1;
+        otherdp2 = 3 - 1;
+//        maxfound = true;
+    }
+    if (d23 > maxd) {
+        maxd = d23;
+        maxdp1 = 2 - 1;
+        maxdp2 = 3 - 1;
+        otherdp1 = 1 - 1;
+        otherdp2 = 4 - 1;
+//        maxfound = true;
+
+    }
+    if (d24 > maxd) {
+        maxd = d24;
+        maxdp1 = 2 - 1;
+        maxdp2 = 4 - 1;
+        otherdp1 = 1 - 1;
+        otherdp2 = 3 - 1;
+//        maxfound = true;
+
+    }
+    if (d34 > maxd) {
+        maxd = d34;
+        maxdp1 = 3 - 1;
+        maxdp2 = 4 - 1;
+        otherdp1 = 1 - 1;
+        otherdp2 = 2 - 1;
+//        maxfound = true;
+
+    }
+    if (maxd == 0){m_green(ON);}
+}
+
+void find_center(){
+    
+    point1[0] = xin[maxdp1];
+    point1[1] = yin[maxdp1];
+    
+    point2[0] = xin[maxdp2];
+    point2[1] = yin[maxdp2];
+    
+    cent[0] = (point1[0] + point2[0]) / 2; //Should this be a float or double or something? Yeah?
+    cent[1] = (point1[1] + point2[1]) / 2; //Should this be a float or double or something? Yeah?
+}
+
+void find_toporbottom(){
+//    toporbottomfound = false;
+    //at this point you know which points are the further apart (maxdp1 & maxdp2)
+    //and you have the indexes of the other two points otherdp1 & otherdp2 in no particular order
+    
+    //find whether maxdp1 or maxdp2 is closer to otherdp1 and other dp2
+    //if maxdp1 is closer other point 2 OR if maxdp1 is closer to other point 1 then max dp1 is the top
+    if ((dm[maxdp1][otherdp2] < dm[maxdp2][otherdp2]) || (dm[maxdp1][otherdp1] < dm[maxdp2][otherdp2]) ){
+        //then maxdp1 is the top
+        top = maxdp1;
+    } else if( (dm[maxdp2][otherdp2] < dm[maxdp1][otherdp2]) || (dm[maxdp2][otherdp1] < dm[maxdp1][otherdp2]) ){
+        top = maxdp2;
+    } else {
+        m_green(ON);
+    }
+    
+//    if ((maxdp1 == 0 && maxdp2 == 1) || (maxdp1 == 1 && maxdp2 == 0)) {
+//        //if point 0 and 1 are the furthest apart
+//        //then the other two points are 2 and 3
+//        otherp1 = 2;
+//        otherp2 = 3;
+//    }
+//    if ((maxdp1 == 0 && maxdp2 == 2) || (maxdp1 == 2 && maxdp2 == 0)) {
+//        //if point 0 and 2 are the furthest apart
+//        //then the other two points are 1 and 3
+//        otherp1 = 1;
+//        otherp2 = 3;
+//    }
+//    if ((maxdp1 == 0 && maxdp2 == 3) || (maxdp1 == 0 && maxdp2 == 3)) {
+//        //if point 0 and 3 are the furthest apart
+//        //then the other two points are 1 and 2
+//        otherp1 = 1;
+//        otherp2 = 2;
+//    }
+//    if ((maxdp1 == 1 && maxdp2 == 2) || (maxdp1 == 2 && maxdp2 == 1)) {
+//        //if point 1 and 2 are the furthest apart
+//        //then the other two points are 0 and 3
+//        otherp1 = 0;
+//        otherp2 = 3;
+//    }
+//    if ((maxdp1 == 1 && maxdp2 == 3) || (maxdp1 == 3 && maxdp2 == 1)) {
+//        //if point 1 and 3 are the furthest apart
+//        //then the other two points are 0 and 2
+//        otherp1 = 0;
+//        otherp2 = 2;
+//    }
+//    if ((maxdp1 == 2 && maxdp2 == 3) || (maxdp1 == 3 && maxdp2 == 2)) {
+//        //if point 2 and 3 are the furthest apart
+//        //then the other two points are 0 and 1
+//        otherp1 = 0;
+//        otherp2 = 1;
+//    }
+//    if (!toporbottomfound) {
+//        m_green(ON);
+//    }
+    
+}
+
+void buylocal() {
+    //all code below this line assumes that data has 12 elements that are the readings from the wii sensor
+    
+    //should prob be done in wii_read just to be sure but whatever
+//    x1in = data[0]; y1in = data[1];
+//    x2in = data[3]; y2in = data[4];
+//    x3in = data[6]; y3in = data[7];
+//    x4in = data[9]; y4in = data[10];
+    xin[0] = data[0]; xin[1] = data[3]; xin[2] = data[6]; xin[3] = data[9];
+    yin[0] = data[1]; yin[1] = data[4]; yin[2] = data[7]; yin[3] = data[10];
+
+    find_distances(); //find all combinations of distances
+    filter_outliers(); //does nothing rn
+    find_max(); //stores points with maximum distance as maxdp1 & maxdp2 STORES INDEXES FOR XIN YIN (i.e. point -1)
+    find_center(); // sets cent[0] && cent[1] CAMERA CENTER
+    find_toporbottom();//find which point is top and which point is bottom, and make a vector betwee them
+    //find the thetas (this involves using a dot product)
+    //matrix multiplication to spin the matrix (LOL)
+    //finally set some variable as the final position
 }
 
 void wii_setup(){
@@ -72,7 +273,7 @@ void wii_setup(){
 }
 
 void wii_read(){
-    char didreadwork_char = m_wii_read(* data);
+    char didreadwork_char = m_wii_read( data ); //NOT SURE IF THIS IS RIGHT
     if (didreadwork_char == '1') {
         read_success  = true;
     } else {
@@ -253,11 +454,17 @@ void go(char direction){
 void drivetest(){
     go('f');
     m_wait(1000);
-    go('b');
+    go('o');
     m_wait(1000);
     go('l');
     m_wait(1000);
+    go('o');
+    m_wait(1000);
     go('r');
+    m_wait(1000);
+    go('o');
+    m_wait(1000);
+    go('b');
     m_wait(1000);
     go('o');
     m_wait(1000);
