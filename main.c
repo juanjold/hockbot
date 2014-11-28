@@ -7,7 +7,7 @@
  
  go() throws if invalid input given
  find_max() throws if no max found
- find_toporbottom() throws if it can't figure out which is top or bottom 
+ find_toporbottom() throws if it can't figure out which is top or bottom
  */
 
 #include <avr/io.h>
@@ -28,7 +28,7 @@
 #define enableNUM 0 //B0 for enable on the motor driver. enables both motors
 
 //declare variables
-bool test = true;
+bool test = false;
 unsigned int data[12]; // = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}; for storing incoming wii data
 bool read_success; //determining whether or not the call to the wii was successfull or nah
 
@@ -44,7 +44,17 @@ int cent[2]; int point1[2]; int point2[2];
 //variables for toporbototm
 //bool toporbottomfound = false;
 int dm[4][4] = {{0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}};
-int top;
+int top; int bottom;
+volatile int heresyoursign; volatile int vect_bottomtotop[2];
+
+//variables for finding the theta
+volatile double theta;
+double dot; double magnitude;
+double up[2] = {0 , 1}; //a vector pointing straight up
+
+//variables for rotation
+double R[2][2]; double pvect[2];
+double position_current[2];
 
 int main(void)
 {
@@ -57,14 +67,16 @@ int main(void)
     //prototype functions to be used in main loop
     void go(char direction);
     void drivetest();
-    void buylocal();
+    void buylocal(void); //I'd like for this to return a matrix or a pointer to a matrix at least but it doesn't really matter I guess lol
     
-    //prototype sub functions (not to be used in main)
+    //prototype sub functions (not to be used in main)... wait we actually don't need to prototype these lol
     void timerswitch(bool on);
     void filter_outliers();
     void find_max();
     void find_center();
     void find_toporbottom();
+    void calculate_thetas();
+    void calculate_rotation();
     
     //prototype functions that I'm not sure where they'll go yet
     void wii_read(){};
@@ -87,7 +99,16 @@ int main(void)
             drivetest();
         } else {
             //do localization here
-            //buylocal();
+            buylocal();
+            m_wait(500);
+            /*Juanjo, can you have it print the value of position_current and theta to MATLAB somewhere in here?
+             position_current[0] should be the x value
+             position_current[1] should be the y value
+             the theta variable is just theta
+             */
+            m_wait(500);
+            wii_read();
+            m_wait(500);
         }
     }
     return 0;   /* never reached */
@@ -118,7 +139,6 @@ void filter_outliers(){
 void find_max(){
     
     maxd = 0;
-//    maxfound = false;
     
     if (d12 > maxd) {
         maxd = d12;
@@ -126,7 +146,6 @@ void find_max(){
         maxdp2 = 2 - 1;
         otherdp1 = 3 - 1;
         otherdp2 = 4 - 1;
-//        maxfound = true;
     }
     if (d13 > maxd) {
         maxd = d13;
@@ -134,7 +153,6 @@ void find_max(){
         maxdp2 = 3 - 1;
         otherdp1 = 2 - 1;
         otherdp2 = 4 - 1;
-//        maxfound = true;
     }
     if (d14 > maxd) {
         maxd = d14;
@@ -142,7 +160,6 @@ void find_max(){
         maxdp2 = 4 - 1;
         otherdp1 = 2 - 1;
         otherdp2 = 3 - 1;
-//        maxfound = true;
     }
     if (d23 > maxd) {
         maxd = d23;
@@ -150,8 +167,6 @@ void find_max(){
         maxdp2 = 3 - 1;
         otherdp1 = 1 - 1;
         otherdp2 = 4 - 1;
-//        maxfound = true;
-
     }
     if (d24 > maxd) {
         maxd = d24;
@@ -159,8 +174,6 @@ void find_max(){
         maxdp2 = 4 - 1;
         otherdp1 = 1 - 1;
         otherdp2 = 3 - 1;
-//        maxfound = true;
-
     }
     if (d34 > maxd) {
         maxd = d34;
@@ -168,8 +181,6 @@ void find_max(){
         maxdp2 = 4 - 1;
         otherdp1 = 1 - 1;
         otherdp2 = 2 - 1;
-//        maxfound = true;
-
     }
     if (maxd == 0){m_green(ON);}
 }
@@ -187,7 +198,6 @@ void find_center(){
 }
 
 void find_toporbottom(){
-//    toporbottomfound = false;
     //at this point you know which points are the further apart (maxdp1 & maxdp2)
     //and you have the indexes of the other two points otherdp1 & otherdp2 in no particular order
     
@@ -196,73 +206,69 @@ void find_toporbottom(){
     if ((dm[maxdp1][otherdp2] < dm[maxdp2][otherdp2]) || (dm[maxdp1][otherdp1] < dm[maxdp2][otherdp2]) ){
         //then maxdp1 is the top
         top = maxdp1;
+        bottom = maxdp2;
     } else if( (dm[maxdp2][otherdp2] < dm[maxdp1][otherdp2]) || (dm[maxdp2][otherdp1] < dm[maxdp1][otherdp2]) ){
         top = maxdp2;
+        bottom = maxdp1;
     } else {
         m_green(ON);
     }
     
-//    if ((maxdp1 == 0 && maxdp2 == 1) || (maxdp1 == 1 && maxdp2 == 0)) {
-//        //if point 0 and 1 are the furthest apart
-//        //then the other two points are 2 and 3
-//        otherp1 = 2;
-//        otherp2 = 3;
-//    }
-//    if ((maxdp1 == 0 && maxdp2 == 2) || (maxdp1 == 2 && maxdp2 == 0)) {
-//        //if point 0 and 2 are the furthest apart
-//        //then the other two points are 1 and 3
-//        otherp1 = 1;
-//        otherp2 = 3;
-//    }
-//    if ((maxdp1 == 0 && maxdp2 == 3) || (maxdp1 == 0 && maxdp2 == 3)) {
-//        //if point 0 and 3 are the furthest apart
-//        //then the other two points are 1 and 2
-//        otherp1 = 1;
-//        otherp2 = 2;
-//    }
-//    if ((maxdp1 == 1 && maxdp2 == 2) || (maxdp1 == 2 && maxdp2 == 1)) {
-//        //if point 1 and 2 are the furthest apart
-//        //then the other two points are 0 and 3
-//        otherp1 = 0;
-//        otherp2 = 3;
-//    }
-//    if ((maxdp1 == 1 && maxdp2 == 3) || (maxdp1 == 3 && maxdp2 == 1)) {
-//        //if point 1 and 3 are the furthest apart
-//        //then the other two points are 0 and 2
-//        otherp1 = 0;
-//        otherp2 = 2;
-//    }
-//    if ((maxdp1 == 2 && maxdp2 == 3) || (maxdp1 == 3 && maxdp2 == 2)) {
-//        //if point 2 and 3 are the furthest apart
-//        //then the other two points are 0 and 1
-//        otherp1 = 0;
-//        otherp2 = 1;
-//    }
-//    if (!toporbottomfound) {
-//        m_green(ON);
-//    }
+    //get the sign
+    if(xin[top] < xin[bottom]){
+        heresyoursign = -1;
+    }
     
+    //lol like probably right. supposed to be a vector from bottom to top as the name implies. CHECK index numbers
+    vect_bottomtotop[0] = xin[top] - xin[bottom];
+    vect_bottomtotop[1] = yin[top] - yin[bottom];
+}
+
+void calculate_thetas(){
+//    thetas(i) = heresyoursign*acos( dot(up, (vect/norm(vect))) ); %MATLAB code
+    
+    //make the vect_bottomtotop a unit vector
+    magnitude = sqrt( pow(vect_bottomtotop[0],2) + pow(vect_bottomtotop[1],2) );
+    
+    vect_bottomtotop[0] = vect_bottomtotop[0] / magnitude;
+    vect_bottomtotop[1] = vect_bottomtotop[1] / magnitude;
+    
+    //find the dot product of the two vectors
+    dot = up[0]*vect_bottomtotop[0] + up[1]*vect_bottomtotop[1]; //LOLz is this how you take a dot product or nah
+    
+    theta = heresyoursign * acos(dot);
+}
+
+void calculate_rotation() {
+//    double R[2][2] = { {cos(theta), -1*sin(theta)}, {sin(theta), cos(theta)} };
+    R[0][0] = cos(theta);
+    R[0][1] = -1*sin(theta);
+    R[1][0] = sin(theta);
+    R[1][1] = cos(theta);
+    
+    //position vector of robot from origin with (0,0) at rink center
+    pvect[0] = 512 - cent[0];
+    pvect[1] = 384 - cent[1];
+    
+    //the positions of the robot in terms of the rink... not CM yet actually not really sure what these units would be.
+    position_current[0] = R[0][0]*pvect[0] + R[0][1]*pvect[1];//THE X POSITION AS;LDKFJALS;DKFJA;LSKDJF
+    position_current[1] = R[1][0]*pvect[0] + R[1][1]*pvect[1];//the Y position
 }
 
 void buylocal() {
     //all code below this line assumes that data has 12 elements that are the readings from the wii sensor
-    
-    //should prob be done in wii_read just to be sure but whatever
-//    x1in = data[0]; y1in = data[1];
-//    x2in = data[3]; y2in = data[4];
-//    x3in = data[6]; y3in = data[7];
-//    x4in = data[9]; y4in = data[10];
     xin[0] = data[0]; xin[1] = data[3]; xin[2] = data[6]; xin[3] = data[9];
     yin[0] = data[1]; yin[1] = data[4]; yin[2] = data[7]; yin[3] = data[10];
 
     find_distances(); //find all combinations of distances
     filter_outliers(); //does nothing rn
-    find_max(); //stores points with maximum distance as maxdp1 & maxdp2 STORES INDEXES FOR XIN YIN (i.e. point -1)
+    find_max(); //stores points with maximum distance as maxdp1 & maxdp2 STORES INDEXES FOR xin yin (i.e. point# -1)
     find_center(); // sets cent[0] && cent[1] CAMERA CENTER
-    find_toporbottom();//find which point is top and which point is bottom, and make a vector betwee them
-    //find the thetas (this involves using a dot product)
-    //matrix multiplication to spin the matrix (LOL)
-    //finally set some variable as the final position
+    find_toporbottom();//find which point is top and which point is bottom (of the two points set by find_max), and makes a vector betwee them, vect_bottomtotop
+    calculate_thetas();//find the thetas (from the vectors and stuff) also gives the theta the correct(?) sign
+    calculate_rotation();//matrix multiplication to spin the matrix (lol)
+    
+    //current positions are now set in position_current[] vector
 }
 
 void wii_setup(){
@@ -273,7 +279,7 @@ void wii_setup(){
 }
 
 void wii_read(){
-    char didreadwork_char = m_wii_read( data ); //NOT SURE IF THIS IS RIGHT
+    char didreadwork_char = m_wii_read( *data ); //NOT SURE IF THIS IS RIGHT
     if (didreadwork_char == '1') {
         read_success  = true;
     } else {
