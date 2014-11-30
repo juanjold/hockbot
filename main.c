@@ -81,12 +81,13 @@ void find_distances(){
     dm[2][1] = d23; dm[1][2] = d23;
     dm[3][1] = d24; dm[1][3] = d24;
     dm[3][2] = d34; dm[2][3] = d34;
-    
-    
 }
 
 void filter_outliers(){
     //don't do the calculations if there are less than two points. Just keep swimming.
+    //if the value in dm came from a 1023 then set hte dm value to... zero?
+//    if
+    
 }
 
 void find_max(){
@@ -170,6 +171,8 @@ void find_toporbottom(){
     //get the sign
     if(xin[top] < xin[bottom]){
         heresyoursign = -1;
+    } else {
+        heresyoursign = 1;
     }
     
     //lol like probably right. supposed to be a vector from bottom to top as the name implies. CHECK index numbers
@@ -183,6 +186,12 @@ void calculate_thetas(){
     //make the vect_bottomtotop a unit vector
     magnitude = sqrt( pow(vect_bottomtotop[0],2) + pow(vect_bottomtotop[1],2) );
     
+    m_usb_tx_string(" BEFORE " );
+    m_usb_tx_string(" vect_bottomtotop[0]: " );
+    m_usb_tx_int(vect_bottomtotop[0]);
+    m_usb_tx_string(" vect_bottomtotop[1]: " );
+    m_usb_tx_int(vect_bottomtotop[1]);
+    
     vect_bottomtotop[0] = vect_bottomtotop[0] / magnitude;
     vect_bottomtotop[1] = vect_bottomtotop[1] / magnitude;
     
@@ -190,8 +199,14 @@ void calculate_thetas(){
     dot = up[0]*vect_bottomtotop[0] + up[1]*vect_bottomtotop[1]; //LOLz is this how you take a dot product or nah
     
     theta = heresyoursign * acos(dot);
+    
+    m_usb_tx_string(" AFTER " );
+    m_usb_tx_string(" heresyoursign: " );
+    m_usb_tx_int(heresyoursign);
     m_usb_tx_string(" madnitude: " );
     m_usb_tx_int(magnitude);
+    m_usb_tx_string(" dot: " );
+    m_usb_tx_int(dot);
     m_usb_tx_string(" vect_bottomtotop[0]: " );
     m_usb_tx_int(vect_bottomtotop[0]);
     m_usb_tx_string(" vect_bottomtotop[1]: " );
@@ -219,11 +234,11 @@ void wii_read(){
     char didreadwork_char = m_wii_read( data ); //NOT SURE IF THIS IS RIGHT
     //m_usb_tx_uint(didreadwork_char);
     int i;
-    /*for (i = 0; i < 12; i++){
+    for (i = 0; i < 12; i++){
      m_usb_tx_uint(data[i]);
      m_usb_tx_string(" ");
      }
-     m_usb_tx_string("read \n" );*/
+     m_usb_tx_string("read \n" );
     if (didreadwork_char == 1) {
         read_success  = true;
         m_red(ON);
@@ -243,6 +258,8 @@ void buylocal() {
     find_max(); //stores points with maximum distance as maxdp1 & maxdp2 STORES INDEXES FOR xin yin (i.e. point# -1)
     find_center(); // sets cent[0] && cent[1] CAMERA CENTER
     find_toporbottom();//find which point is top and which point is bottom (of the two points set by find_max), and makes a vector betwee them, vect_bottomtotop
+    
+    //the error starts here
     calculate_thetas();//find the thetas (from the vectors and stuff) also gives the theta the correct(?) sign
     calculate_rotation();//matrix multiplication to spin the matrix (lol)
     
@@ -250,7 +267,7 @@ void buylocal() {
     m_usb_tx_string(",");
     m_usb_tx_int(position_current[1]);
     m_usb_tx_string(" theta: ");
-    m_usb_tx_int((theta*M_PI)/180);
+    m_usb_tx_int((theta*180)/M_PI);
     m_usb_tx_string("\n");
     //current positions are now set in position_current[] vector
 }
@@ -473,22 +490,12 @@ int main(void)
         if (test) {
             drivetest();
         } else {
-            
-            //m_green(ON);
-            
             //do localization here
             buylocal();
-            m_wait(100);
-            /*Juanjo, can you have it print the value of position_current and theta to MATLAB somewhere in here?
-             position_current[0] should be the x value
-             position_current[1] should be the y value
-             the theta variable is just theta
-             */
-            //            m_wait(500);
-            //wii_read();
-            m_wait(100);
+            m_wait(250);
             m_red(OFF);
             m_green(OFF);
+            m_wait(250);
         }
     }
     return 0;   /* never reached */
