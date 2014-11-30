@@ -29,6 +29,8 @@
 #define enablePIN PORTB
 #define enableNUM 0 //B0 for enable on the motor driver. enables both motors
 
+#define timersupto 40000
+
 //declare variables
 bool test = false;
 unsigned int data[12]; // = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}; for storing incoming wii data
@@ -64,6 +66,26 @@ void wii_setup(){
     m_usb_tx_string(" sensor on \n" );
 }
 
+void wii_read(){
+    char didreadwork_char = m_wii_read( data ); //NOT SURE IF THIS IS RIGHT
+    //m_usb_tx_uint(didreadwork_char);
+    int i;
+    for (i = 0; i < 12; i++){
+        m_usb_tx_uint(data[i]);
+        m_usb_tx_string(" ");
+    }
+    m_usb_tx_string("read \n" );
+    if (didreadwork_char == 1) {
+        read_success  = true;
+        m_red(ON);
+    } else {
+        read_success = false;
+        m_green(ON);
+    }
+    //all code below this line assumes that data has 12 elements that are the readings from the wii sensor
+    xin[0] = data[0]; xin[1] = data[3]; xin[2] = data[6]; xin[3] = data[9];
+    yin[0] = data[1]; yin[1] = data[4]; yin[2] = data[7]; yin[3] = data[10];
+}
 
 void find_distances(){
     //find the distances between the points you took in
@@ -84,10 +106,41 @@ void find_distances(){
 }
 
 void filter_outliers(){
-    //don't do the calculations if there are less than two points. Just keep swimming.
-    //if the value in dm came from a 1023 then set hte dm value to... zero?
-//    if
+    //TO IMPLEMENT: don't do the calculations if there are less than two points. Just keep swimming.
     
+    //if the value in dm came from a 1023 then set hte dm value to NAN
+    if(xin[0] == 1023 || yin[0] == 1023){
+        dm[0][1] = NAN;
+        dm[0][2] = NAN;
+        dm[0][3] = NAN;
+        dm[1][0] = NAN;
+        dm[2][0] = NAN;
+        dm[3][0] = NAN;
+    }
+    if(xin[1] == 1023 || yin[1] == 1023){
+        dm[1][0] = NAN;
+        dm[1][2] = NAN;
+        dm[1][3] = NAN;
+        dm[0][1] = NAN;
+        dm[2][1] = NAN;
+        dm[3][1] = NAN;
+    }
+    if (xin[2] == 1023 || yin[2] == 1023) {
+        dm[2][0] = NAN;
+        dm[2][1] = NAN;
+        dm[2][3] = NAN;
+        dm[0][2] = NAN;
+        dm[1][2] = NAN;
+        dm[3][2] = NAN;
+    }
+    if (xin[3] == 1023 || yin[3] == 1023) {
+        dm[3][0] = NAN;
+        dm[3][1] = NAN;
+        dm[3][2] = NAN;
+        dm[0][3] = NAN;
+        dm[1][3] = NAN;
+        dm[2][3] = NAN;
+    }
 }
 
 void find_max(){
@@ -230,37 +283,16 @@ void calculate_rotation() {
     position_current[1] = R[1][0]*pvect[0] + R[1][1]*pvect[1];//the Y position
 }
 
-void wii_read(){
-    char didreadwork_char = m_wii_read( data ); //NOT SURE IF THIS IS RIGHT
-    //m_usb_tx_uint(didreadwork_char);
-    int i;
-    for (i = 0; i < 12; i++){
-     m_usb_tx_uint(data[i]);
-     m_usb_tx_string(" ");
-     }
-     m_usb_tx_string("read \n" );
-    if (didreadwork_char == 1) {
-        read_success  = true;
-        m_red(ON);
-    } else {
-        read_success = false;
-        m_green(ON);
-    }
-    //all code below this line assumes that data has 12 elements that are the readings from the wii sensor
-    xin[0] = data[0]; xin[1] = data[3]; xin[2] = data[6]; xin[3] = data[9];
-    yin[0] = data[1]; yin[1] = data[4]; yin[2] = data[7]; yin[3] = data[10];
-}
-
 void buylocal() {
     wii_read();
     find_distances(); //find all combinations of distances
-    filter_outliers(); //does nothing rn
+    filter_outliers(); //set dm[][] that came from 1023 point to NAN
     find_max(); //stores points with maximum distance as maxdp1 & maxdp2 STORES INDEXES FOR xin yin (i.e. point# -1)
     find_center(); // sets cent[0] && cent[1] CAMERA CENTER
     find_toporbottom();//find which point is top and which point is bottom (of the two points set by find_max), and makes a vector betwee them, vect_bottomtotop
+    calculate_thetas();//find the thetas (from the vectors and stuff) also gives the theta the correct(?) sign
     
     //the error starts here
-    calculate_thetas();//find the thetas (from the vectors and stuff) also gives the theta the correct(?) sign
     calculate_rotation();//matrix multiplication to spin the matrix (lol)
     
     m_usb_tx_int(position_current[0]);
@@ -271,7 +303,6 @@ void buylocal() {
     m_usb_tx_string("\n");
     //current positions are now set in position_current[] vector
 }
-
 
 void timer1setup_cvargas(int time_scale){
     
@@ -405,15 +436,15 @@ void init(){
 void go(char direction){
 //    int i = 0; // for m_wait time function later
     switch (direction) {
-        case 'l':
-            clear(motor1, direction1);//motor1 forward
-            set(motor2, direction2);//motor2 backwards
+        case 'r':
+            set(motor1, direction1);//motor1 forward
+            clear(motor2, direction2);//motor2 backwards
             timerswitch(true);//start the pwm
             set(enablePIN, enableNUM);//set the enable line high
             break;
-        case 'r':
-            set(motor1, direction1);//motor1 backwards
-            clear(motor2, direction2);//motor2 forward
+        case 'l':
+            clear(motor1, direction1);//motor1 backwards
+            set(motor2, direction2);//motor2 forward
             timerswitch(true); //start the pwm
             set(enablePIN, enableNUM);//set the enable line high
             break;
@@ -443,25 +474,65 @@ void go(char direction){
     }
 }
 
+void left_PWM(int percent){
+    if (percent >= 0 && percent <= 100) {
+        OCR3A = (timersupto * percent) / 100;
+    } else {
+        m_green(ON);
+        //default to 50% duty cycle
+        OCR3A = timersupto / 2; //for PWM of motor 2... C6
+        ICR3 = timersupto; //PWMing at 400 Hz rn i.e. this is 40 000
+    }
+} //give it a percent you want to PWM the motor
+
+void right_PWM(int percent){
+    if (percent >= 0 && percent <= 100) {
+        OCR1B = (timersupto * percent) / 100;
+    } else {
+        m_green(ON);
+        //default to 50% duty cycle
+        OCR1B = timersupto / 2; //for PWM of motor 1
+        OCR1A = timersupto; //PWMing at 400 Hz rn i.e. this is 40 000
+    }
+} //give it a percent you want to PWM the motor
+
 void drivetest(){
     go('f');
     m_wait(1000);
+    right_PWM(10);
+    m_wait(1000);
+    right_PWM(50);
+    m_wait(1000);
+    right_PWM(75);
+    m_wait(1000);
+    right_PWM(100);
+    m_wait(1000);
+    
     go('o');
     m_wait(1000);
-    go('l');
+    right_PWM(1);
+    
+    go('f');
     m_wait(1000);
-    go('o');
+    left_PWM(10);
     m_wait(1000);
-    go('r');
+    left_PWM(50);
     m_wait(1000);
-    go('o');
+    left_PWM(75);
     m_wait(1000);
-    go('b');
+    left_PWM(100);
     m_wait(1000);
-    go('o');
-    m_wait(1000);
+//    right_PWM(50)
+//
+//    go('f');
+//    m_wait(500);
+//    left_PWM(10);
+//    m_wait(500);
+//    left_PWM(75);
+//    m_wait(500);
+//    left_PWM(100);
+//    m_wait(500);
 }
-
 
 int main(void)
 {
