@@ -8,6 +8,7 @@
  go() throws if invalid input given
  find_max() throws if no max found
  find_toporbottom() throws if it can't figure out which is top or bottom
+ wii_setup() if it failz
  */
 
 #include <avr/io.h>
@@ -15,6 +16,7 @@
 #include <math.h>
 #include "m_general.h"
 #include "m_wii.h"
+#include "m_usb.h"
 
 #define motor1 PORTB
 #define direction1 7 //high is forward and low is backwards
@@ -45,7 +47,7 @@ int cent[2]; int point1[2]; int point2[2];
 //bool toporbottomfound = false;
 int dm[4][4] = {{0,0,0,0}, {0,0,0,0}, {0,0,0,0}, {0,0,0,0}};
 int top; int bottom;
-volatile int heresyoursign; volatile int vect_bottomtotop[2];
+volatile int heresyoursign; volatile double vect_bottomtotop[2];
 
 //variables for finding the theta
 volatile double theta;
@@ -56,63 +58,12 @@ double up[2] = {0 , 1}; //a vector pointing straight up
 double R[2][2]; double pvect[2];
 double position_current[2];
 
-int main(void)
-{
-    //prototype the setup functions
-    void init();
-    void timer1setup_cvargas(int time_scale);
-    void timer3setup_cvargas(); //defaults to timescale of 0
-    void wii_setup(){};
-    
-    //prototype functions to be used in main loop
-    void go(char direction);
-    void drivetest();
-    void buylocal(void); //I'd like for this to return a matrix or a pointer to a matrix at least but it doesn't really matter I guess lol
-    
-    //prototype sub functions (not to be used in main)... wait we actually don't need to prototype these lol
-    void timerswitch(bool on);
-    void filter_outliers();
-    void find_max();
-    void find_center();
-    void find_toporbottom();
-    void calculate_thetas();
-    void calculate_rotation();
-    
-    //prototype functions that I'm not sure where they'll go yet
-    void wii_read(){};
-    
-    //call the external setup functions
-    m_red(ON);
-    timer1setup_cvargas(0);
-    timer3setup_cvargas();
-    init();
-    
-    // make sure everything is off rn
-    timerswitch(false);
-    go('o');
-    m_wait(100); //to show successful startup
-    m_red(OFF);
-    m_green(OFF);//will come on before this if the wii_setup succeeded.
-    
-    while (1) {
-        if (test) {
-            drivetest();
-        } else {
-            //do localization here
-            buylocal();
-            m_wait(500);
-            /*Juanjo, can you have it print the value of position_current and theta to MATLAB somewhere in here?
-             position_current[0] should be the x value
-             position_current[1] should be the y value
-             the theta variable is just theta
-             */
-            m_wait(500);
-            wii_read();
-            m_wait(500);
-        }
-    }
-    return 0;   /* never reached */
+void wii_setup(){
+    char sensoron = m_wii_open();
+    m_usb_tx_uint(sensoron);
+    m_usb_tx_string(" sensor on \n" );
 }
+
 
 void find_distances(){
     //find the distances between the points you took in
@@ -130,6 +81,8 @@ void find_distances(){
     dm[2][1] = d23; dm[1][2] = d23;
     dm[3][1] = d24; dm[1][3] = d24;
     dm[3][2] = d34; dm[2][3] = d34;
+    
+    
 }
 
 void filter_outliers(){
@@ -237,6 +190,13 @@ void calculate_thetas(){
     dot = up[0]*vect_bottomtotop[0] + up[1]*vect_bottomtotop[1]; //LOLz is this how you take a dot product or nah
     
     theta = heresyoursign * acos(dot);
+    m_usb_tx_string(" madnitude: " );
+    m_usb_tx_int(magnitude);
+    m_usb_tx_string(" vect_bottomtotop[0]: " );
+    m_usb_tx_int(vect_bottomtotop[0]);
+    m_usb_tx_string(" vect_bottomtotop[1]: " );
+    m_usb_tx_int(vect_bottomtotop[1]);
+    m_usb_tx_string("  ");
 }
 
 void calculate_rotation() {
@@ -255,11 +215,29 @@ void calculate_rotation() {
     position_current[1] = R[1][0]*pvect[0] + R[1][1]*pvect[1];//the Y position
 }
 
-void buylocal() {
+void wii_read(){
+    char didreadwork_char = m_wii_read( data ); //NOT SURE IF THIS IS RIGHT
+    //m_usb_tx_uint(didreadwork_char);
+    int i;
+    /*for (i = 0; i < 12; i++){
+     m_usb_tx_uint(data[i]);
+     m_usb_tx_string(" ");
+     }
+     m_usb_tx_string("read \n" );*/
+    if (didreadwork_char == 1) {
+        read_success  = true;
+        m_red(ON);
+    } else {
+        read_success = false;
+        m_green(ON);
+    }
     //all code below this line assumes that data has 12 elements that are the readings from the wii sensor
     xin[0] = data[0]; xin[1] = data[3]; xin[2] = data[6]; xin[3] = data[9];
     yin[0] = data[1]; yin[1] = data[4]; yin[2] = data[7]; yin[3] = data[10];
+}
 
+void buylocal() {
+    wii_read();
     find_distances(); //find all combinations of distances
     filter_outliers(); //does nothing rn
     find_max(); //stores points with maximum distance as maxdp1 & maxdp2 STORES INDEXES FOR xin yin (i.e. point# -1)
@@ -268,24 +246,15 @@ void buylocal() {
     calculate_thetas();//find the thetas (from the vectors and stuff) also gives the theta the correct(?) sign
     calculate_rotation();//matrix multiplication to spin the matrix (lol)
     
+    m_usb_tx_int(position_current[0]);
+    m_usb_tx_string(",");
+    m_usb_tx_int(position_current[1]);
+    m_usb_tx_string(" theta: ");
+    m_usb_tx_int((theta*M_PI)/180);
+    m_usb_tx_string("\n");
     //current positions are now set in position_current[] vector
 }
 
-void wii_setup(){
-    char sensoron = m_wii_open();
-    if(sensoron){
-        m_green(ON); //green light on if the sensor connected properly
-    }
-}
-
-void wii_read(){
-    char didreadwork_char = m_wii_read( *data ); //NOT SURE IF THIS IS RIGHT
-    if (didreadwork_char == '1') {
-        read_success  = true;
-    } else {
-        read_success = false;
-    }
-}
 
 void timer1setup_cvargas(int time_scale){
     
@@ -474,4 +443,53 @@ void drivetest(){
     m_wait(1000);
     go('o');
     m_wait(1000);
+}
+
+
+int main(void)
+{
+    //call the external setup functions
+    m_red(ON);
+    init();
+    timer1setup_cvargas(0);
+    timer3setup_cvargas();
+    m_usb_init();
+    // make sure everything is off rn
+    timerswitch(false);
+    go('o');
+    m_wait(100); //to show successful startup
+    while(!m_usb_isconnected()); // REMEMBER TO GET RID OF THIS YO
+    m_usb_tx_string("finished setup \n");
+    m_red(OFF);
+    m_green(OFF);//will come on before this if the wii_setup succeeded.
+    
+    m_wait(250);
+    m_usb_tx_string("entering wii setup\n");
+    wii_setup();
+    m_wait(250);
+    
+    m_usb_tx_string("in while loop\n" );
+    while (1) {
+        if (test) {
+            drivetest();
+        } else {
+            
+            //m_green(ON);
+            
+            //do localization here
+            buylocal();
+            m_wait(100);
+            /*Juanjo, can you have it print the value of position_current and theta to MATLAB somewhere in here?
+             position_current[0] should be the x value
+             position_current[1] should be the y value
+             the theta variable is just theta
+             */
+            //            m_wait(500);
+            //wii_read();
+            m_wait(100);
+            m_red(OFF);
+            m_green(OFF);
+        }
+    }
+    return 0;   /* never reached */
 }
