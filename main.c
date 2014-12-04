@@ -17,6 +17,7 @@
 #include "m_general.h"
 #include "m_wii.h"
 #include "m_usb.h"
+#include "m_bus.h"
 
 #define motor1 PORTB
 #define direction1 7 //high is forward and low is backwards
@@ -30,8 +31,16 @@
 #define enableNUM 0 //B0 for enable on the motor driver. enables both motors
 
 #define timersupto 40000
+#define threshold 200  //experiment 
 
-//declare variables
+#define epsilon 20 //experiment
+
+#define CHANNEL 1
+#define RXADDRESS 0x08 //0x09, 0x0A
+#define PACKET_LENGTH 10
+
+char buffer[PACKET_LENGTH] = {0,0,0,0,0,0,0,0,0,0};
+//declare variabless
 bool test = false;
 unsigned int data[12]; // = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}; for storing incoming wii data
 bool read_success; //determining whether or not the call to the wii was successfull or nah
@@ -58,7 +67,44 @@ double up[2] = {0 , 1}; //a vector pointing straight up
 
 //variables for rotation
 double R[2][2]; double pvect[2];
+double Rot[3][3]; double T[3][3]; double pos[3][1]; 
 double position_current[2];
+
+// directions
+typedef enum  {
+	LEFT,
+	RIGHT,
+	UP,
+	DOWN
+} Direction;
+
+Direction goal = LEFT; //must change acording to switch.
+
+// gaming states
+typedef enum{
+	LOOKING_FOR_PUCK,
+	POINT_TO_PUCK,
+	GO_TO_PUCK,
+	WITH_PUCK,
+	CONTROL
+} State;
+
+State state = LOOKING_FOR_PUCK; //change this? //experiment
+
+//Sensing
+//eyes
+int back_right = 0;
+int back_left = 0;
+int front_right = 0;
+int front_left = 0;
+
+typedef enum{
+	F0,
+	F1,
+	F4,
+	F5
+} ADC_PIN;
+ADC_PIN adc = F0;
 
 void wii_setup(){
     char sensoron = m_wii_open();
@@ -269,10 +315,24 @@ void calculate_thetas(){
 
 void calculate_rotation() {
 //    double R[2][2] = { {cos(theta), -1*sin(theta)}, {sin(theta), cos(theta)} };
-    R[0][0] = cos(theta);
-    R[0][1] = -1*sin(theta);
-    R[1][0] = sin(theta);
-    R[1][1] = cos(theta);
+/*	Rot[0][0] = cos(theta); Rot[0][1] = -1*sin(theta); Rot[0][2] = 0;
+	Rot[1][0] = sin(theta); Rot[1][1] = cos(theta);	   Rot[1][2] = 0;
+	Rot[2][0] = 0;		  ; Rot[2][1] = 0;			   Rot[2][2] = 1;
+
+	T[0][0] = 0;	T[0][1] = 0;	T[0][2] = pvect[0];
+	T[1][0] = 0;	T[1][1] = 0;	T[1][2] = pvect[1];
+	T[2][0] = 0;	T[2][1] = 0;	T[2][2] = 1;
+
+	//pos = T * Rot * C 
+	position_current[0] = cent[0]*(Rot[0][0]*T[0][0] + Rot[0][1]*T[1][0] + Rot[0][2]*T[2][0]) + cent[1]*(Rot[0][0]*T[0][1] + Rot[0][1]*T[1][1] + Rot[0][2]*T[2][1]) + (Rot[0][0]*T[0][2] + Rot[0][1]*T[1][2] + Rot[0][2]*T[2][2]);
+	position_current[1] = cent[0]*(Rot[1][0]*T[0][0] + Rot[1][1]*T[1][0] + Rot[1][2]*T[2][0]) + cent[1]*(Rot[1][0]*T[0][1] + Rot[1][1]*T[1][1] + Rot[1][2]*T[2][1]) + (Rot[1][0]*T[0][2] + Rot[1][1]*T[1][2] + Rot[1][2]*T[2][2]);
+	//pos[2] = 1;
+*/
+
+	R[0][0] = -cos(theta);
+    R[0][1] = sin(theta);
+    R[1][0] = -sin(theta);
+    R[1][1] = -cos(theta);
     
     //position vector of robot from origin with (0,0) at rink center
     pvect[0] = 512 - cent[0];
@@ -294,13 +354,14 @@ void buylocal() {
     
     //the error starts here
     calculate_rotation();//matrix multiplication to spin the matrix (lol)
-    
+    /*
     m_usb_tx_int(position_current[0]);
     m_usb_tx_string(",");
     m_usb_tx_int(position_current[1]);
     m_usb_tx_string(" theta: ");
     m_usb_tx_int((theta*180)/M_PI);
     m_usb_tx_string("\n");
+	*/
     //current positions are now set in position_current[] vector
 }
 
@@ -416,6 +477,33 @@ void timerswitch(bool on){
     }
 }
 
+void init_ADC()
+{
+	//voltage ref Vcc
+	clear(ADMUX,REFS1);
+	set(ADMUX,REFS0);
+
+	//prescaler to /128
+	set(ADCSRA,ADPS2);
+	set(ADCSRA,ADPS1);
+	set(ADCSRA,ADPS0);
+
+	//disabling input	
+	set(DIDR0,ADC0D);
+	set(DIDR0,ADC1D);
+	set(DIDR0,ADC2D);
+	set(DIDR0,ADC3D);
+
+	//channel sel
+	clear(ADCSRB,MUX5);
+	clear(ADMUX,MUX2);
+	clear(ADMUX,MUX1);
+	clear(ADMUX,MUX0);
+	
+	//enable interrupts
+	set(ADCSRA,ADIE);
+}
+
 void init(){
     m_clockdivide(0);
 
@@ -428,7 +516,7 @@ void init(){
     
     //bring actual outputs low
     clear(enablePIN, enableNUM);
-    
+    init_ADC();
     //enable global interrupts
     sei();
 }
@@ -542,11 +630,14 @@ int main(void)
     timer1setup_cvargas(0);
     timer3setup_cvargas();
     m_usb_init();
+	// configure mRF
+	m_bus_init();
+	m_rf_open(CHANNEL,RXADDRESS,PACKET_LENGTH);
     // make sure everything is off rn
     timerswitch(false);
     go('o');
     m_wait(100); //to show successful startup
-    while(!m_usb_isconnected()); // REMEMBER TO GET RID OF THIS YO
+    //while(!m_usb_isconnected()); // REMEMBER TO GET RID OF THIS YO
     m_usb_tx_string("finished setup \n");
     m_red(OFF);
     m_green(OFF);//will come on before this if the wii_setup succeeded.
@@ -557,17 +648,214 @@ int main(void)
     m_wait(250);
     
     m_usb_tx_string("in while loop\n" );
+
+	//start ADC conversion
+	set(ADCSRA,ADEN);
+	set(ADCSRA,ADSC);
+	
+	//set goal
+	if(check(PORTD,1)) //change to actual pin //experiment
+	{
+		goal = RIGHT;
+	}
+	else
+	{
+		goal = LEFT;
+	}
+
     while (1) {
         if (test) {
             drivetest();
-        } else {
+        }/* else {
             //do localization here
             buylocal();
             m_wait(250);
             m_red(OFF);
             m_green(OFF);
             m_wait(250);
-        }
+        }*/
+
+	//GAME
+	switch(state) {
+		case LOOKING_FOR_PUCK:
+			//do something. for now, rotate in place.
+			left_PWM(20);
+			right_PWM(20);
+			go('l');
+		if (back_left > threshold || back_right > threshold || front_left > threshold || front_right > threshold)
+		{
+			state = POINT_TO_PUCK;
+		}
+		break;
+
+		case POINT_TO_PUCK:
+			//back_right eye, turn right
+			if(back_right > back_left)
+			{
+				left_PWM(20);
+				right_PWM(20);
+				go('l');
+			}
+			//likewise, back_left eye, turn left
+			else if (back_left > back_right)
+			{
+				left_PWM(20);
+				right_PWM(20);
+				go('r');
+			}
+
+			//idk about this threshold //experiment
+			if(front_right > threshold && front_left > threshold)
+			{	
+				//turn right if it's to the right
+				if(front_right > front_left)
+				{
+					left_PWM(20);
+					right_PWM(20);
+					go('r');
+				}
+				//
+				else if (front_left > front_right)
+				{
+					left_PWM(20);
+					right_PWM(20);
+					go('l');					
+				}
+			}
+
+			//if absolute value of different between front eyes is smaller than E, and the values 
+			//are greater than some threshold (take into account when neither eye sees something)
+			if(abs(front_right-front_left) < epsilon && (front_left + front_right) > threshold) //experiment threshold
+			{
+				state = GO_TO_PUCK;
+			}
+		break;
+
+		case GO_TO_PUCK:
+			//if we're still seeing the PUCK
+			if(abs(front_right-front_left) < epsilon && (front_left + front_right) > threshold) {
+				left_PWM(30);
+				right_PWM(30);
+				go('f');
+			}
+			//check to see if we have the puck in the sloot
+			else if(check(PORTD,1)) // put in an actual pin to detect puck in sloot
+			{
+				state = WITH_PUCK;
+			}
+			else
+			{
+				state = POINT_TO_PUCK;
+				go('o');
+			}
+		break;
+
+		case WITH_PUCK:
+			//turn to goal
+			buylocal();
+/*	 /-----------------------\
+	 |						 |
+Left |						 | Right
+90	 |						 |	-90
+	 |						 |
+	 \-----------------------/	
+*/			switch (goal)
+			{
+				RIGHT:
+					//turn towards theta, in a slow arc.
+					//experiment, need to check all these values
+				if (theta < -88)
+				{
+					left_PWM(40);
+					right_PWM(50);
+					go('f');
+				}
+				else if (theta > 92)
+				{
+					left_PWM(50);
+					right_PWM(40);
+					go('f');
+				}
+				else 
+				{	//I mean why not? lololol
+					left_PWM(90);
+					right_PWM(90);
+					go('f');
+				}
+				break;
+			
+				LEFT:
+				if (theta < 88)
+				{
+					left_PWM(50);
+					right_PWM(40);
+					go('f');
+				}
+				else if (theta > 92)
+				{
+					left_PWM(40);
+					right_PWM(50);
+					go('f');
+				}
+				else
+				{	//I mean why not? lololol
+					left_PWM(90);
+					right_PWM(90);
+					go('f');
+				}
+				break;
+			}
+		if(!check(PORTD,1)) //put in an actual pin here for puck //experiment
+		{
+			state = LOOKING_FOR_PUCK;
+		}
+		break;
+
+		case CONTROL:
+			//put command things heerrrrrr
+		break;
     }
     return 0;   /* never reached */
+}
+}
+
+ISR(ADC_vect)
+{
+	switch(adc)	{
+		case F0:
+		back_left = ADC;
+		set(ADMUX,MUX0);
+		adc = F1;
+		break;
+
+		case F1:
+		back_right = ADC;
+		set(ADMUX,MUX2);
+		clear(ADMUX,MUX0);
+		adc = F4;
+		break;
+
+		case F4:
+		front_left = ADC;
+		set(ADMUX,MUX0);
+		adc = F5;
+		break;
+
+		case F5:
+		front_right = ADC;
+		clear(ADMUX,MUX0);
+		clear(ADMUX,MUX2);
+		adc = F0;
+		break;
+	}
+	//might need to do with flags inside while loop if !working //experiment
+	set(ADCSRA,ADEN);
+	set(ADCSRA,ADSC);
+}
+
+ISR(INT2_vect)
+{
+m_rf_read(buffer,PACKET_LENGTH);
+state = CONTROL;
+//save old state??
 }

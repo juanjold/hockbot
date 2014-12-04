@@ -5,8 +5,8 @@ smoothie = false; %add smoothing
 spin = true; %add spin theta
 vec_scale = 2;
 
-load A
-% load B
+load C
+% load V
 % load C
  
 data = rawStarData;
@@ -235,9 +235,18 @@ for i = 1:length(maxindex)
    if(spin)
        R = [cos(thetas(i)) -sin(thetas(i)); ...
             sin(thetas(i))  cos(thetas(i))];
-        pvect = [(1024/2 - centers(i,1)), (768/2 - centers(i,2))]; %vector from rink center to camera
-%        R = [cosd(90) -sind(90); sind(90) cosd(90)];
-       interim = R*pvect'; %position of the robot with (0,0) origin at the rink center
+       pvect = [(1024/2 - centers(i,1)), (768/2 - centers(i,2))]; %vector from rink center to camera
+       %R = [cosd(90) -sind(90); sind(90) cosd(90)];
+       %interim = R*pvect'; %position of the robot with (0,0) origin at the rink center
+       Rot = [ cos(thetas(i)) -sin(thetas(i)) 0; sin(thetas(i)) cos(thetas(i)) 0; 0 0 1];
+       T = [ 1 0 centers(i,1); 0 1 centers(i,2); 0 0 1];
+       Tn = T;
+       Tn(1,3) = -Tn(1,3);
+       Tn(2,3) = -Tn(2,3); 
+       c = [pvect 1];
+       %c = [pvect 1];
+       H = T * Rot * Tn* c';
+       interim = H;
    else
        R = [1 0; 0 1];
        interim = R*[centers(i,:)]'; 
@@ -259,13 +268,13 @@ if(smoothie)
     finals(:,2) = smooth(finals(:,2));
 end
 
-plot(finals(:,1), finals(:,2), 'k');
+plot(finals(:,1), finals(:,2), 'o');
 hold on
 % plot(finals(:,1), finals(:,2), '*c');
 title('positions')
 
 axis([-1024/2 1024/2 -768/2 768/2]);
-
+axis equal
 % figure(2)
 quiver(finals(:,1), finals(:,2),u,v,vec_scale);
 % figure(2)
