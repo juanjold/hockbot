@@ -86,7 +86,12 @@ typedef enum{
 	POINT_TO_PUCK,
 	GO_TO_PUCK,
 	WITH_PUCK,
-	CONTROL
+	CONTROL,
+	PAUSE,
+	HALFTIME,
+	GAME_OVER,
+	PLAY,
+	COMM_TEST
 } State;
 
 State state = LOOKING_FOR_PUCK; //change this? //experiment
@@ -812,7 +817,44 @@ Left |						 | Right
 		break;
 
 		case CONTROL:
-			//put command things heerrrrrr
+			if(buffer[0] == 0xA0) {
+				state = COMM_TEST;
+			} else if (buffer[0] == 0xA1) {
+				state = PLAY;
+			} else if (buffer[0] == 0xA2 || buffer[0] == 0xA3){
+				state  = PAUSE;
+			} else if (buffer[0] == 0xA4) {
+				state = PAUSE;
+			} else if (buffer[0] == 0xA6 || buffer[0] == 0xA7) {
+				state = PAUSE;
+			}
+		break;
+		
+		case COMM_TEST:
+			//flash blue LED
+			clear(PORTB,2);
+			m_wait(1000);
+			set(PORTB,2);
+			m_wait(1000);
+			clear(PORTB,2);
+			state = PAUSE;
+		break;
+
+		case PLAY:
+			//for now just look for puck!
+			state = LOOKING_FOR_PUCK;
+		break;
+			
+		case PAUSE:
+			go('o');
+			left_PWM(0);
+			right_PWM(0);
+		break;
+
+		case HALFTIME:
+			go('o');
+			left_PWM(0);
+			right_PWM(0);
 		break;
     }
     return 0;   /* never reached */
