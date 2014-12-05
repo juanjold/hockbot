@@ -687,22 +687,22 @@ int main(void)
 			left_PWM(20);
 			right_PWM(20);
 			go('l');
-		if (back_left > threshold || back_right > threshold || front_left > threshold || front_right > threshold)
-		{
-			state = POINT_TO_PUCK;
-		}
+			if (back_left > threshold || back_right > threshold || front_left > threshold || front_right > threshold)
+			{
+				state = POINT_TO_PUCK;
+			}
 		break;
 
 		case POINT_TO_PUCK:
 			//back_right eye, turn right
-			if(back_right > back_left)
+			if(back_right > back_left && back_right > front_right && back_right > front_left)
 			{
 				left_PWM(20);
 				right_PWM(20);
 				go('l');
 			}
 			//likewise, back_left eye, turn left
-			else if (back_left > back_right)
+			else if (back_left > back_right && back_right > front_right && back_right > front_left)
 			{
 				left_PWM(20);
 				right_PWM(20);
@@ -810,10 +810,10 @@ Left |						 | Right
 				}
 				break;
 			}
-		if(!check(PORTD,1)) //put in an actual pin here for puck //experiment
-		{
-			state = LOOKING_FOR_PUCK;
-		}
+			if(!check(PORTD,1)) //put in an actual pin here for puck //experiment
+			{
+				state = POINT_TO_PUCK;
+			}
 		break;
 
 		case CONTROL:
