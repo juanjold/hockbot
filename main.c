@@ -1,15 +1,15 @@
 /* Name: robockey driver 1.0
- * Authors: Cruz, Teddy, Juanjo, & Spencer
- */
+* Authors: Cruz, Teddy, Juanjo, & Spencer
+*/
 
 /*
- errors that could turn on the green LED:
- 
- go() throws if invalid input given
- find_max() throws if no max found
- find_toporbottom() throws if it can't figure out which is top or bottom
- wii_setup() if it failz
- */
+errors that could turn on the green LED:
+
+go() throws if invalid input given
+find_max() throws if no max found
+find_toporbottom() throws if it can't figure out which is top or bottom
+wii_setup() if it failz
+*/
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
@@ -31,7 +31,7 @@
 #define enableNUM 0 //B0 for enable on the motor driver. enables both motors
 
 #define timersupto 40000
-#define threshold 200  //experiment 
+#define threshold 200  //experiment
 
 #define epsilon 20 //experiment
 
@@ -67,7 +67,7 @@ double up[2] = {0 , 1}; //a vector pointing straight up
 
 //variables for rotation
 double R[2][2]; double pvect[2];
-double Rot[3][3]; double T[3][3]; double pos[3][1]; 
+double Rot[3][3]; double T[3][3]; double pos[3][1];
 double position_current[2];
 
 // directions
@@ -102,384 +102,386 @@ int back_right = 0;
 int back_left = 0;
 int front_right = 0;
 int front_left = 0;
+int puck_eyes = 0;
 
 typedef enum{
 	F0,
 	F1,
 	F4,
-	F5
+	F5,
+	B4
 } ADC_PIN;
 ADC_PIN adc = F0;
 
 void wii_setup(){
-    char sensoron = m_wii_open();
-    m_usb_tx_uint(sensoron);
-    m_usb_tx_string(" sensor on \n" );
+	char sensoron = m_wii_open();
+	m_usb_tx_uint(sensoron);
+	m_usb_tx_string(" sensor on \n" );
 }
 
 void wii_read(){
-    char didreadwork_char = m_wii_read( data ); //NOT SURE IF THIS IS RIGHT
-    //m_usb_tx_uint(didreadwork_char);
-    int i;
-    for (i = 0; i < 12; i++){
-        m_usb_tx_uint(data[i]);
-        m_usb_tx_string(" ");
-    }
-    m_usb_tx_string("read \n" );
-    if (didreadwork_char == 1) {
-        read_success  = true;
-        m_red(ON);
-    } else {
-        read_success = false;
-        m_green(ON);
-    }
-    //all code below this line assumes that data has 12 elements that are the readings from the wii sensor
-    xin[0] = data[0]; xin[1] = data[3]; xin[2] = data[6]; xin[3] = data[9];
-    yin[0] = data[1]; yin[1] = data[4]; yin[2] = data[7]; yin[3] = data[10];
+	char didreadwork_char = m_wii_read( data ); //NOT SURE IF THIS IS RIGHT
+	//m_usb_tx_uint(didreadwork_char);
+	int i;
+	for (i = 0; i < 12; i++){
+		m_usb_tx_uint(data[i]);
+		m_usb_tx_string(" ");
+	}
+	m_usb_tx_string("read \n" );
+	if (didreadwork_char == 1) {
+		read_success  = true;
+		m_red(ON);
+		} else {
+		read_success = false;
+		m_green(ON);
+	}
+	//all code below this line assumes that data has 12 elements that are the readings from the wii sensor
+	xin[0] = data[0]; xin[1] = data[3]; xin[2] = data[6]; xin[3] = data[9];
+	yin[0] = data[1]; yin[1] = data[4]; yin[2] = data[7]; yin[3] = data[10];
 }
 
 void find_distances(){
-    //find the distances between the points you took in
-    d12 = sqrt( pow((xin[1] - xin[0]) , 2) + pow((yin[1] - yin[0]) , 2) );
-    d13 = sqrt( pow((xin[2] - xin[0]) , 2) + pow((yin[2] - yin[0]) , 2) );
-    d14 = sqrt( pow((xin[3] - xin[0]) , 2) + pow((yin[3] - yin[0]) , 2) );
-    d23 = sqrt( pow((xin[2] - xin[1]) , 2) + pow((yin[2] - yin[0]) , 2) );
-    d24 = sqrt( pow((xin[3] - xin[1]) , 2) + pow((yin[3] - yin[1]) , 2) );
-    d34 = sqrt( pow((xin[3] - xin[2]) , 2) + pow((yin[3] - yin[2]) , 2) );
-    
-    //fill in the distance matrix
-    dm[1][0] = d12; dm[0][1] = d12;
-    dm[2][0] = d13; dm[0][2] = d13;
-    dm[3][0] = d14; dm[0][3] = d14;
-    dm[2][1] = d23; dm[1][2] = d23;
-    dm[3][1] = d24; dm[1][3] = d24;
-    dm[3][2] = d34; dm[2][3] = d34;
+	//find the distances between the points you took in
+	d12 = sqrt( pow((xin[1] - xin[0]) , 2) + pow((yin[1] - yin[0]) , 2) );
+	d13 = sqrt( pow((xin[2] - xin[0]) , 2) + pow((yin[2] - yin[0]) , 2) );
+	d14 = sqrt( pow((xin[3] - xin[0]) , 2) + pow((yin[3] - yin[0]) , 2) );
+	d23 = sqrt( pow((xin[2] - xin[1]) , 2) + pow((yin[2] - yin[0]) , 2) );
+	d24 = sqrt( pow((xin[3] - xin[1]) , 2) + pow((yin[3] - yin[1]) , 2) );
+	d34 = sqrt( pow((xin[3] - xin[2]) , 2) + pow((yin[3] - yin[2]) , 2) );
+	
+	//fill in the distance matrix
+	dm[1][0] = d12; dm[0][1] = d12;
+	dm[2][0] = d13; dm[0][2] = d13;
+	dm[3][0] = d14; dm[0][3] = d14;
+	dm[2][1] = d23; dm[1][2] = d23;
+	dm[3][1] = d24; dm[1][3] = d24;
+	dm[3][2] = d34; dm[2][3] = d34;
 }
 
 void filter_outliers(){
-    //TO IMPLEMENT: don't do the calculations if there are less than two points. Just keep swimming.
-    
-    //if the value in dm came from a 1023 then set hte dm value to NAN
-    if(xin[0] == 1023 || yin[0] == 1023){
-        dm[0][1] = NAN;
-        dm[0][2] = NAN;
-        dm[0][3] = NAN;
-        dm[1][0] = NAN;
-        dm[2][0] = NAN;
-        dm[3][0] = NAN;
-    }
-    if(xin[1] == 1023 || yin[1] == 1023){
-        dm[1][0] = NAN;
-        dm[1][2] = NAN;
-        dm[1][3] = NAN;
-        dm[0][1] = NAN;
-        dm[2][1] = NAN;
-        dm[3][1] = NAN;
-    }
-    if (xin[2] == 1023 || yin[2] == 1023) {
-        dm[2][0] = NAN;
-        dm[2][1] = NAN;
-        dm[2][3] = NAN;
-        dm[0][2] = NAN;
-        dm[1][2] = NAN;
-        dm[3][2] = NAN;
-    }
-    if (xin[3] == 1023 || yin[3] == 1023) {
-        dm[3][0] = NAN;
-        dm[3][1] = NAN;
-        dm[3][2] = NAN;
-        dm[0][3] = NAN;
-        dm[1][3] = NAN;
-        dm[2][3] = NAN;
-    }
+	//TO IMPLEMENT: don't do the calculations if there are less than two points. Just keep swimming.
+	
+	//if the value in dm came from a 1023 then set hte dm value to NAN
+	if(xin[0] == 1023 || yin[0] == 1023){
+		dm[0][1] = NAN;
+		dm[0][2] = NAN;
+		dm[0][3] = NAN;
+		dm[1][0] = NAN;
+		dm[2][0] = NAN;
+		dm[3][0] = NAN;
+	}
+	if(xin[1] == 1023 || yin[1] == 1023){
+		dm[1][0] = NAN;
+		dm[1][2] = NAN;
+		dm[1][3] = NAN;
+		dm[0][1] = NAN;
+		dm[2][1] = NAN;
+		dm[3][1] = NAN;
+	}
+	if (xin[2] == 1023 || yin[2] == 1023) {
+		dm[2][0] = NAN;
+		dm[2][1] = NAN;
+		dm[2][3] = NAN;
+		dm[0][2] = NAN;
+		dm[1][2] = NAN;
+		dm[3][2] = NAN;
+	}
+	if (xin[3] == 1023 || yin[3] == 1023) {
+		dm[3][0] = NAN;
+		dm[3][1] = NAN;
+		dm[3][2] = NAN;
+		dm[0][3] = NAN;
+		dm[1][3] = NAN;
+		dm[2][3] = NAN;
+	}
 }
 
 void find_max(){
-    
-    maxd = 0;
-    
-    if (d12 > maxd) {
-        maxd = d12;
-        maxdp1 = 1 - 1;
-        maxdp2 = 2 - 1;
-        otherdp1 = 3 - 1;
-        otherdp2 = 4 - 1;
-    }
-    if (d13 > maxd) {
-        maxd = d13;
-        maxdp1 = 1 - 1;
-        maxdp2 = 3 - 1;
-        otherdp1 = 2 - 1;
-        otherdp2 = 4 - 1;
-    }
-    if (d14 > maxd) {
-        maxd = d14;
-        maxdp1 = 1 - 1;
-        maxdp2 = 4 - 1;
-        otherdp1 = 2 - 1;
-        otherdp2 = 3 - 1;
-    }
-    if (d23 > maxd) {
-        maxd = d23;
-        maxdp1 = 2 - 1;
-        maxdp2 = 3 - 1;
-        otherdp1 = 1 - 1;
-        otherdp2 = 4 - 1;
-    }
-    if (d24 > maxd) {
-        maxd = d24;
-        maxdp1 = 2 - 1;
-        maxdp2 = 4 - 1;
-        otherdp1 = 1 - 1;
-        otherdp2 = 3 - 1;
-    }
-    if (d34 > maxd) {
-        maxd = d34;
-        maxdp1 = 3 - 1;
-        maxdp2 = 4 - 1;
-        otherdp1 = 1 - 1;
-        otherdp2 = 2 - 1;
-    }
-    if (maxd == 0){m_green(ON);}
+	
+	maxd = 0;
+	
+	if (d12 > maxd) {
+		maxd = d12;
+		maxdp1 = 1 - 1;
+		maxdp2 = 2 - 1;
+		otherdp1 = 3 - 1;
+		otherdp2 = 4 - 1;
+	}
+	if (d13 > maxd) {
+		maxd = d13;
+		maxdp1 = 1 - 1;
+		maxdp2 = 3 - 1;
+		otherdp1 = 2 - 1;
+		otherdp2 = 4 - 1;
+	}
+	if (d14 > maxd) {
+		maxd = d14;
+		maxdp1 = 1 - 1;
+		maxdp2 = 4 - 1;
+		otherdp1 = 2 - 1;
+		otherdp2 = 3 - 1;
+	}
+	if (d23 > maxd) {
+		maxd = d23;
+		maxdp1 = 2 - 1;
+		maxdp2 = 3 - 1;
+		otherdp1 = 1 - 1;
+		otherdp2 = 4 - 1;
+	}
+	if (d24 > maxd) {
+		maxd = d24;
+		maxdp1 = 2 - 1;
+		maxdp2 = 4 - 1;
+		otherdp1 = 1 - 1;
+		otherdp2 = 3 - 1;
+	}
+	if (d34 > maxd) {
+		maxd = d34;
+		maxdp1 = 3 - 1;
+		maxdp2 = 4 - 1;
+		otherdp1 = 1 - 1;
+		otherdp2 = 2 - 1;
+	}
+	if (maxd == 0){m_green(ON);}
 }
 
 void find_center(){
-    
-    point1[0] = xin[maxdp1];
-    point1[1] = yin[maxdp1];
-    
-    point2[0] = xin[maxdp2];
-    point2[1] = yin[maxdp2];
-    
-    cent[0] = (point1[0] + point2[0]) / 2; //Should this be a float or double or something? Yeah?
-    cent[1] = (point1[1] + point2[1]) / 2; //Should this be a float or double or something? Yeah?
+	
+	point1[0] = xin[maxdp1];
+	point1[1] = yin[maxdp1];
+	
+	point2[0] = xin[maxdp2];
+	point2[1] = yin[maxdp2];
+	
+	cent[0] = (point1[0] + point2[0]) / 2; //Should this be a float or double or something? Yeah?
+	cent[1] = (point1[1] + point2[1]) / 2; //Should this be a float or double or something? Yeah?
 }
 
 void find_toporbottom(){
-    //at this point you know which points are the further apart (maxdp1 & maxdp2)
-    //and you have the indexes of the other two points otherdp1 & otherdp2 in no particular order
-    
-    //find whether maxdp1 or maxdp2 is closer to otherdp1 and other dp2
-    //if maxdp1 is closer other point 2 OR if maxdp1 is closer to other point 1 then max dp1 is the top
-    if ((dm[maxdp1][otherdp2] < dm[maxdp2][otherdp2]) || (dm[maxdp1][otherdp1] < dm[maxdp2][otherdp2]) ){
-        //then maxdp1 is the top
-        top = maxdp1;
-        bottom = maxdp2;
-    } else if( (dm[maxdp2][otherdp2] < dm[maxdp1][otherdp2]) || (dm[maxdp2][otherdp1] < dm[maxdp1][otherdp2]) ){
-        top = maxdp2;
-        bottom = maxdp1;
-    } else {
-        m_green(ON);
-    }
-    
-    //get the sign
-    if(xin[top] < xin[bottom]){
-        heresyoursign = -1;
-    } else {
-        heresyoursign = 1;
-    }
-    
-    //lol like probably right. supposed to be a vector from bottom to top as the name implies. CHECK index numbers
-    vect_bottomtotop[0] = xin[top] - xin[bottom];
-    vect_bottomtotop[1] = yin[top] - yin[bottom];
+	//at this point you know which points are the further apart (maxdp1 & maxdp2)
+	//and you have the indexes of the other two points otherdp1 & otherdp2 in no particular order
+	
+	//find whether maxdp1 or maxdp2 is closer to otherdp1 and other dp2
+	//if maxdp1 is closer other point 2 OR if maxdp1 is closer to other point 1 then max dp1 is the top
+	if ((dm[maxdp1][otherdp2] < dm[maxdp2][otherdp2]) || (dm[maxdp1][otherdp1] < dm[maxdp2][otherdp2]) ){
+		//then maxdp1 is the top
+		top = maxdp1;
+		bottom = maxdp2;
+		} else if( (dm[maxdp2][otherdp2] < dm[maxdp1][otherdp2]) || (dm[maxdp2][otherdp1] < dm[maxdp1][otherdp2]) ){
+		top = maxdp2;
+		bottom = maxdp1;
+		} else {
+		m_green(ON);
+	}
+	
+	//get the sign
+	if(xin[top] < xin[bottom]){
+		heresyoursign = -1;
+		} else {
+		heresyoursign = 1;
+	}
+	
+	//lol like probably right. supposed to be a vector from bottom to top as the name implies. CHECK index numbers
+	vect_bottomtotop[0] = xin[top] - xin[bottom];
+	vect_bottomtotop[1] = yin[top] - yin[bottom];
 }
 
 void calculate_thetas(){
-//    thetas(i) = heresyoursign*acos( dot(up, (vect/norm(vect))) ); %MATLAB code
-    
-    //make the vect_bottomtotop a unit vector
-    magnitude = sqrt( pow(vect_bottomtotop[0],2) + pow(vect_bottomtotop[1],2) );
-    
-    m_usb_tx_string(" BEFORE " );
-    m_usb_tx_string(" vect_bottomtotop[0]: " );
-    m_usb_tx_int(vect_bottomtotop[0]);
-    m_usb_tx_string(" vect_bottomtotop[1]: " );
-    m_usb_tx_int(vect_bottomtotop[1]);
-    
-    vect_bottomtotop[0] = vect_bottomtotop[0] / magnitude;
-    vect_bottomtotop[1] = vect_bottomtotop[1] / magnitude;
-    
-    //find the dot product of the two vectors
-    dot = up[0]*vect_bottomtotop[0] + up[1]*vect_bottomtotop[1]; //LOLz is this how you take a dot product or nah
-    
-    theta = heresyoursign * acos(dot);
-    
-    m_usb_tx_string(" AFTER " );
-    m_usb_tx_string(" heresyoursign: " );
-    m_usb_tx_int(heresyoursign);
-    m_usb_tx_string(" madnitude: " );
-    m_usb_tx_int(magnitude);
-    m_usb_tx_string(" dot: " );
-    m_usb_tx_int(dot);
-    m_usb_tx_string(" vect_bottomtotop[0]: " );
-    m_usb_tx_int(vect_bottomtotop[0]);
-    m_usb_tx_string(" vect_bottomtotop[1]: " );
-    m_usb_tx_int(vect_bottomtotop[1]);
-    m_usb_tx_string("  ");
+	//    thetas(i) = heresyoursign*acos( dot(up, (vect/norm(vect))) ); %MATLAB code
+	
+	//make the vect_bottomtotop a unit vector
+	magnitude = sqrt( pow(vect_bottomtotop[0],2) + pow(vect_bottomtotop[1],2) );
+	
+	m_usb_tx_string(" BEFORE " );
+	m_usb_tx_string(" vect_bottomtotop[0]: " );
+	m_usb_tx_int(vect_bottomtotop[0]);
+	m_usb_tx_string(" vect_bottomtotop[1]: " );
+	m_usb_tx_int(vect_bottomtotop[1]);
+	
+	vect_bottomtotop[0] = vect_bottomtotop[0] / magnitude;
+	vect_bottomtotop[1] = vect_bottomtotop[1] / magnitude;
+	
+	//find the dot product of the two vectors
+	dot = up[0]*vect_bottomtotop[0] + up[1]*vect_bottomtotop[1]; //LOLz is this how you take a dot product or nah
+	
+	theta = heresyoursign * acos(dot);
+	
+	m_usb_tx_string(" AFTER " );
+	m_usb_tx_string(" heresyoursign: " );
+	m_usb_tx_int(heresyoursign);
+	m_usb_tx_string(" madnitude: " );
+	m_usb_tx_int(magnitude);
+	m_usb_tx_string(" dot: " );
+	m_usb_tx_int(dot);
+	m_usb_tx_string(" vect_bottomtotop[0]: " );
+	m_usb_tx_int(vect_bottomtotop[0]);
+	m_usb_tx_string(" vect_bottomtotop[1]: " );
+	m_usb_tx_int(vect_bottomtotop[1]);
+	m_usb_tx_string("  ");
 }
 
 void calculate_rotation() {
-//    double R[2][2] = { {cos(theta), -1*sin(theta)}, {sin(theta), cos(theta)} };
-/*	Rot[0][0] = cos(theta); Rot[0][1] = -1*sin(theta); Rot[0][2] = 0;
+	//    double R[2][2] = { {cos(theta), -1*sin(theta)}, {sin(theta), cos(theta)} };
+	/*	Rot[0][0] = cos(theta); Rot[0][1] = -1*sin(theta); Rot[0][2] = 0;
 	Rot[1][0] = sin(theta); Rot[1][1] = cos(theta);	   Rot[1][2] = 0;
 	Rot[2][0] = 0;		  ; Rot[2][1] = 0;			   Rot[2][2] = 1;
-
+	
 	T[0][0] = 0;	T[0][1] = 0;	T[0][2] = pvect[0];
 	T[1][0] = 0;	T[1][1] = 0;	T[1][2] = pvect[1];
 	T[2][0] = 0;	T[2][1] = 0;	T[2][2] = 1;
-
-	//pos = T * Rot * C 
+	
+	//pos = T * Rot * C
 	position_current[0] = cent[0]*(Rot[0][0]*T[0][0] + Rot[0][1]*T[1][0] + Rot[0][2]*T[2][0]) + cent[1]*(Rot[0][0]*T[0][1] + Rot[0][1]*T[1][1] + Rot[0][2]*T[2][1]) + (Rot[0][0]*T[0][2] + Rot[0][1]*T[1][2] + Rot[0][2]*T[2][2]);
 	position_current[1] = cent[0]*(Rot[1][0]*T[0][0] + Rot[1][1]*T[1][0] + Rot[1][2]*T[2][0]) + cent[1]*(Rot[1][0]*T[0][1] + Rot[1][1]*T[1][1] + Rot[1][2]*T[2][1]) + (Rot[1][0]*T[0][2] + Rot[1][1]*T[1][2] + Rot[1][2]*T[2][2]);
 	//pos[2] = 1;
-*/
-
+	*/
+	
 	R[0][0] = -cos(theta);
-    R[0][1] = sin(theta);
-    R[1][0] = -sin(theta);
-    R[1][1] = -cos(theta);
-    
-    //position vector of robot from origin with (0,0) at rink center
-    pvect[0] = 512 - cent[0];
-    pvect[1] = 384 - cent[1];
-    
-    //the positions of the robot in terms of the rink... not CM yet actually not really sure what these units would be.
-    position_current[0] = R[0][0]*pvect[0] + R[0][1]*pvect[1];//THE X POSITION AS;LDKFJALS;DKFJA;LSKDJF
-    position_current[1] = R[1][0]*pvect[0] + R[1][1]*pvect[1];//the Y position
+	R[0][1] = sin(theta);
+	R[1][0] = -sin(theta);
+	R[1][1] = -cos(theta);
+	
+	//position vector of robot from origin with (0,0) at rink center
+	pvect[0] = 512 - cent[0];
+	pvect[1] = 384 - cent[1];
+	
+	//the positions of the robot in terms of the rink... not CM yet actually not really sure what these units would be.
+	position_current[0] = R[0][0]*pvect[0] + R[0][1]*pvect[1];//THE X POSITION AS;LDKFJALS;DKFJA;LSKDJF
+	position_current[1] = R[1][0]*pvect[0] + R[1][1]*pvect[1];//the Y position
 }
 
 void buylocal() {
-    wii_read();
-    find_distances(); //find all combinations of distances
-    filter_outliers(); //set dm[][] that came from 1023 point to NAN
-    find_max(); //stores points with maximum distance as maxdp1 & maxdp2 STORES INDEXES FOR xin yin (i.e. point# -1)
-    find_center(); // sets cent[0] && cent[1] CAMERA CENTER
-    find_toporbottom();//find which point is top and which point is bottom (of the two points set by find_max), and makes a vector betwee them, vect_bottomtotop
-    calculate_thetas();//find the thetas (from the vectors and stuff) also gives the theta the correct(?) sign
-    
-    //the error starts here
-    calculate_rotation();//matrix multiplication to spin the matrix (lol)
-    /*
-    m_usb_tx_int(position_current[0]);
-    m_usb_tx_string(",");
-    m_usb_tx_int(position_current[1]);
-    m_usb_tx_string(" theta: ");
-    m_usb_tx_int((theta*180)/M_PI);
-    m_usb_tx_string("\n");
+	wii_read();
+	find_distances(); //find all combinations of distances
+	filter_outliers(); //set dm[][] that came from 1023 point to NAN
+	find_max(); //stores points with maximum distance as maxdp1 & maxdp2 STORES INDEXES FOR xin yin (i.e. point# -1)
+	find_center(); // sets cent[0] && cent[1] CAMERA CENTER
+	find_toporbottom();//find which point is top and which point is bottom (of the two points set by find_max), and makes a vector betwee them, vect_bottomtotop
+	calculate_thetas();//find the thetas (from the vectors and stuff) also gives the theta the correct(?) sign
+	
+	//the error starts here
+	calculate_rotation();//matrix multiplication to spin the matrix (lol)
+	/*
+	m_usb_tx_int(position_current[0]);
+	m_usb_tx_string(",");
+	m_usb_tx_int(position_current[1]);
+	m_usb_tx_string(" theta: ");
+	m_usb_tx_int((theta*180)/M_PI);
+	m_usb_tx_string("\n");
 	*/
-    //current positions are now set in position_current[] vector
+	//current positions are now set in position_current[] vector
 }
 
 void timer1setup_cvargas(int time_scale){
-    
-    //turn clock on and scale by the time_scale input.
-    //defaults to scale by 1
-    switch (time_scale) {
-        case 0:
-            clear(TCCR1B, CS10);
-            clear(TCCR1B, CS11);
-            clear(TCCR1B, CS12);
-            break;
-        case 1:
-            set(TCCR1B, CS10);
-            clear(TCCR1B, CS11);
-            clear(TCCR1B, CS12);
-            break;
-        case 8:
-            clear(TCCR1B, CS10);
-            set(TCCR1B, CS11);
-            clear(TCCR1B, CS12);
-            break;
-        case 64:
-            set(TCCR1B, CS10);
-            set(TCCR1B, CS11);
-            clear(TCCR1B, CS12);
-            break;
-        case 256:
-            clear(TCCR1B, CS10);
-            clear(TCCR1B, CS11);
-            set(TCCR1B, CS12);
-            break;
-        case 1024:
-            set(TCCR1B, CS10);
-            clear(TCCR1B, CS11);
-            set(TCCR1B, CS12);
-            break;
-        default:
-            set(TCCR1B, CS10);
-            clear(TCCR1B, CS11);
-            clear(TCCR1B, CS12);
-            break;
-    }
-    
-    //set to:
-    // (mode 15) UP to OCR1A, PWM mode
-    set(TCCR1A, WGM10);
-    set(TCCR1A, WGM11);
-    set(TCCR1B, WGM12);
-    set(TCCR1B, WGM13);
-    
-    //set B6 for output
-    set(DDRB, 6);
-    
-    //set OCR1B to the switch_voltage input after checking to make sure input is valid
-//    if ((trigger > 0x00FF) || (trigger < 0x0000)) {
-//        trigger = 127;
-//    }
-//    OCR1B = trigger;
-    
-    //configure timer to:
-    //clear at OCR1B
-    //this sets and clears output of pin B6
-    //sets at rollover
-    set(TCCR1A,COM1B1);
-    clear(TCCR1A,COM1B0);
-    
-    //set default counter values
-    OCR1B = 20000;
-    OCR1A = 40000; //PWMing at 400 Hz rn
+	
+	//turn clock on and scale by the time_scale input.
+	//defaults to scale by 1
+	switch (time_scale) {
+		case 0:
+		clear(TCCR1B, CS10);
+		clear(TCCR1B, CS11);
+		clear(TCCR1B, CS12);
+		break;
+		case 1:
+		set(TCCR1B, CS10);
+		clear(TCCR1B, CS11);
+		clear(TCCR1B, CS12);
+		break;
+		case 8:
+		clear(TCCR1B, CS10);
+		set(TCCR1B, CS11);
+		clear(TCCR1B, CS12);
+		break;
+		case 64:
+		set(TCCR1B, CS10);
+		set(TCCR1B, CS11);
+		clear(TCCR1B, CS12);
+		break;
+		case 256:
+		clear(TCCR1B, CS10);
+		clear(TCCR1B, CS11);
+		set(TCCR1B, CS12);
+		break;
+		case 1024:
+		set(TCCR1B, CS10);
+		clear(TCCR1B, CS11);
+		set(TCCR1B, CS12);
+		break;
+		default:
+		set(TCCR1B, CS10);
+		clear(TCCR1B, CS11);
+		clear(TCCR1B, CS12);
+		break;
+	}
+	
+	//set to:
+	// (mode 15) UP to OCR1A, PWM mode
+	set(TCCR1A, WGM10);
+	set(TCCR1A, WGM11);
+	set(TCCR1B, WGM12);
+	set(TCCR1B, WGM13);
+	
+	//set B6 for output
+	set(DDRB, 6);
+	
+	//set OCR1B to the switch_voltage input after checking to make sure input is valid
+	//    if ((trigger > 0x00FF) || (trigger < 0x0000)) {
+	//        trigger = 127;
+	//    }
+	//    OCR1B = trigger;
+	
+	//configure timer to:
+	//clear at OCR1B
+	//this sets and clears output of pin B6
+	//sets at rollover
+	set(TCCR1A,COM1B1);
+	clear(TCCR1A,COM1B0);
+	
+	//set default counter values
+	OCR1B = 20000;
+	OCR1A = 40000; //PWMing at 400 Hz rn
 }
 
 void timer3setup_cvargas(){
-    
-    //turn clock on and scale by the time_scale input.
-    //defaults to scale by 0
-    clear(TCCR3B, CS32);
-    clear(TCCR3B, CS31);
-    clear(TCCR3B, CS30);
-    
-    //set to: (mode 14) UP to ICR3, PWM mode
-    // UP to ICR3, PWM mode
-    set(TCCR3B,WGM33);
-    set(TCCR3B, WGM32);
-    set(TCCR3A, WGM31);
-    clear(TCCR3A, WGM30);
-    
-    //set C6 for output
-    set(DDRC, 6);
-    
-    //configure timer to:
-    //clear at OCR3A
-    //this sets and clears output of pin C6
-    //sets at rollover
-    set(TCCR3A, COM3A1);
-    clear(TCCR3A, COM3A0);
-    
-    //set default counter values
-    OCR3A = 20000; //for PWM of motor 2... C6
-    ICR3 = 40000; //PWMing at 400 Hz rn
+	
+	//turn clock on and scale by the time_scale input.
+	//defaults to scale by 0
+	clear(TCCR3B, CS32);
+	clear(TCCR3B, CS31);
+	clear(TCCR3B, CS30);
+	
+	//set to: (mode 14) UP to ICR3, PWM mode
+	// UP to ICR3, PWM mode
+	set(TCCR3B,WGM33);
+	set(TCCR3B, WGM32);
+	set(TCCR3A, WGM31);
+	clear(TCCR3A, WGM30);
+	
+	//set C6 for output
+	set(DDRC, 6);
+	
+	//configure timer to:
+	//clear at OCR3A
+	//this sets and clears output of pin C6
+	//sets at rollover
+	set(TCCR3A, COM3A1);
+	clear(TCCR3A, COM3A0);
+	
+	//set default counter values
+	OCR3A = 20000; //for PWM of motor 2... C6
+	ICR3 = 40000; //PWMing at 400 Hz rn
 }
 
 void timerswitch(bool on){
-    if(on){
-        set(TCCR3B, CS30); //start timer3
-        set(TCCR1B, CS10); //start timer1
-    } else {
-        clear(TCCR3B, CS30); //stop timer3
-        clear(TCCR1B, CS10); //stop timer1
-        clear(motor2, PWM2); //make sure the PWM pin is low
-        clear(motor1, PWM1); //mkae sure the PWM pin is low
-    }
+	if(on){
+		set(TCCR3B, CS30); //start timer3
+		set(TCCR1B, CS10); //start timer1
+		} else {
+		clear(TCCR3B, CS30); //stop timer3
+		clear(TCCR1B, CS10); //stop timer1
+		clear(motor2, PWM2); //make sure the PWM pin is low
+		clear(motor1, PWM1); //mkae sure the PWM pin is low
+	}
 }
 
 void init_ADC()
@@ -487,177 +489,194 @@ void init_ADC()
 	//voltage ref Vcc
 	clear(ADMUX,REFS1);
 	set(ADMUX,REFS0);
-
+	
 	//prescaler to /128
 	set(ADCSRA,ADPS2);
 	set(ADCSRA,ADPS1);
 	set(ADCSRA,ADPS0);
-
-	//disabling input	
+	
+	//disabling input
 	set(DIDR0,ADC0D);
 	set(DIDR0,ADC1D);
-	set(DIDR0,ADC2D);
-	set(DIDR0,ADC3D);
-
+	set(DIDR0,ADC4D);
+	set(DIDR0,ADC5D);
+	set(DIDR2,ADC11D);
+	
 	//channel sel
 	clear(ADCSRB,MUX5);
 	clear(ADMUX,MUX2);
 	clear(ADMUX,MUX1);
 	clear(ADMUX,MUX0);
 	
+	//set pin for output
+	set(DDRF,5);
+	
 	//enable interrupts
 	set(ADCSRA,ADIE);
 }
 
 void init(){
-    m_clockdivide(0);
-
-    //set direction pins for output
-    //set(DDRx,n); //PWM PIN for timer1 covered by B6 in timer1setup_cvargas
-    // PWM PIN for timer4 also covered in C7 in timer4setup_cvargas
-    set(DDRB, direction1);
-    set(DDRC, direction2);
-    set(DDRB, enableNUM);
-    
-    //bring actual outputs low
-    clear(enablePIN, enableNUM);
-    init_ADC();
-    //enable global interrupts
-    sei();
+	m_clockdivide(0);
+	m_disableJTAG();
+	//set direction pins for output
+	//set(DDRx,n); //PWM PIN for timer1 covered by B6 in timer1setup_cvargas
+	// PWM PIN for timer4 also covered in C7 in timer4setup_cvargas
+	set(DDRB, direction1);
+	set(DDRC, direction2);
+	set(DDRB, enableNUM);
+	
+	//solenoid
+	set(DDRD,7);
+	clear(PORTD,7);
+	
+	//DIP switches
+	//clear(DDRD,3);
+	//set(PORTD,3d);
+	
+	//ADC
+	clear(DDRF,0);
+	clear(DDRF,1);
+	clear(DDRF,4);
+	clear(DDRF,5);
+	clear(DDRB,4);
+	//bring actual outputs low
+	clear(enablePIN, enableNUM);
+	init_ADC();
+	//enable global interrupts
+	sei();
 }
 
 void go(char direction){
-//    int i = 0; // for m_wait time function later
-    switch (direction) {
-        case 'r':
-            set(motor1, direction1);//motor1 forward
-            clear(motor2, direction2);//motor2 backwards
-            timerswitch(true);//start the pwm
-            set(enablePIN, enableNUM);//set the enable line high
-            break;
-        case 'l':
-            clear(motor1, direction1);//motor1 backwards
-            set(motor2, direction2);//motor2 forward
-            timerswitch(true); //start the pwm
-            set(enablePIN, enableNUM);//set the enable line high
-            break;
-        case 'f':
-            //both motors same direction
-            set(motor1, direction1);
-            set(motor2, direction2);
-            timerswitch(true); //start the pwm
-            set(enablePIN, enableNUM);//set the enable line high
-            break;
-        case 'b':
-            //both motors same direction but opposite of 'f'
-            clear(motor1, direction1);
-            clear(motor2, direction2);
-            timerswitch(true); //start the pwm
-            set(enablePIN, enableNUM);//set the enable line high
-            break;
-        case 'o':
-            timerswitch(false);//disable both PWMs
-            clear(enablePIN, enableNUM);//clear the enable line low
-            clear(motor1, PWM1);//make double sure that the PWM output is cleared for both lines
-            clear(motor2, PWM2);
-            break;
-        default:
-            m_green(ON);
-            break;
-    }
+	//    int i = 0; // for m_wait time function later
+	switch (direction) {
+		case 'r':
+		set(motor1, direction1);//motor1 forward
+		clear(motor2, direction2);//motor2 backwards
+		timerswitch(true);//start the pwm
+		set(enablePIN, enableNUM);//set the enable line high
+		break;
+		case 'l':
+		clear(motor1, direction1);//motor1 backwards
+		set(motor2, direction2);//motor2 forward
+		timerswitch(true); //start the pwm
+		set(enablePIN, enableNUM);//set the enable line high
+		break;
+		case 'f':
+		//both motors same direction
+		set(motor1, direction1);
+		set(motor2, direction2);
+		timerswitch(true); //start the pwm
+		set(enablePIN, enableNUM);//set the enable line high
+		break;
+		case 'b':
+		//both motors same direction but opposite of 'f'
+		clear(motor1, direction1);
+		clear(motor2, direction2);
+		timerswitch(true); //start the pwm
+		set(enablePIN, enableNUM);//set the enable line high
+		break;
+		case 'o':
+		timerswitch(false);//disable both PWMs
+		clear(enablePIN, enableNUM);//clear the enable line low
+		clear(motor1, PWM1);//make double sure that the PWM output is cleared for both lines
+		clear(motor2, PWM2);
+		break;
+		default:
+		m_green(ON);
+		break;
+	}
 }
 
 void left_PWM(int percent){
-    if (percent >= 0 && percent <= 100) {
-        OCR3A = (timersupto * percent) / 100;
-    } else {
-        m_green(ON);
-        //default to 50% duty cycle
-        OCR3A = timersupto / 2; //for PWM of motor 2... C6
-        ICR3 = timersupto; //PWMing at 400 Hz rn i.e. this is 40 000
-    }
+	if (percent >= 0 && percent <= 100) {
+		OCR3A = (timersupto * percent) / 100;
+		} else {
+		m_green(ON);
+		//default to 50% duty cycle
+		OCR3A = timersupto / 2; //for PWM of motor 2... C6
+		ICR3 = timersupto; //PWMing at 400 Hz rn i.e. this is 40 000
+	}
 } //give it a percent you want to PWM the motor
 
 void right_PWM(int percent){
-    if (percent >= 0 && percent <= 100) {
-        OCR1B = (timersupto * percent) / 100;
-    } else {
-        m_green(ON);
-        //default to 50% duty cycle
-        OCR1B = timersupto / 2; //for PWM of motor 1
-        OCR1A = timersupto; //PWMing at 400 Hz rn i.e. this is 40 000
-    }
+	if (percent >= 0 && percent <= 100) {
+		OCR1B = (timersupto * percent) / 100;
+		} else {
+		m_green(ON);
+		//default to 50% duty cycle
+		OCR1B = timersupto / 2; //for PWM of motor 1
+		OCR1A = timersupto; //PWMing at 400 Hz rn i.e. this is 40 000
+	}
 } //give it a percent you want to PWM the motor
 
 void drivetest(){
-    go('f');
-    m_wait(1000);
-    right_PWM(10);
-    m_wait(1000);
-    right_PWM(50);
-    m_wait(1000);
-    right_PWM(75);
-    m_wait(1000);
-    right_PWM(100);
-    m_wait(1000);
-    
-    go('o');
-    m_wait(1000);
-    right_PWM(1);
-    
-    go('f');
-    m_wait(1000);
-    left_PWM(10);
-    m_wait(1000);
-    left_PWM(50);
-    m_wait(1000);
-    left_PWM(75);
-    m_wait(1000);
-    left_PWM(100);
-    m_wait(1000);
-//    right_PWM(50)
-//
-//    go('f');
-//    m_wait(500);
-//    left_PWM(10);
-//    m_wait(500);
-//    left_PWM(75);
-//    m_wait(500);
-//    left_PWM(100);
-//    m_wait(500);
+	go('f');
+	m_wait(1000);
+	right_PWM(10);
+	m_wait(1000);
+	right_PWM(50);
+	m_wait(1000);
+	right_PWM(75);
+	m_wait(1000);
+	right_PWM(100);
+	m_wait(1000);
+	
+	go('o');
+	m_wait(1000);
+	right_PWM(1);
+	
+	go('f');
+	m_wait(1000);
+	left_PWM(10);
+	m_wait(1000);
+	left_PWM(50);
+	m_wait(1000);
+	left_PWM(75);
+	m_wait(1000);
+	left_PWM(100);
+	m_wait(1000);
+	//    right_PWM(50)
+	//
+	//    go('f');
+	//    m_wait(500);
+	//    left_PWM(10);
+	//    m_wait(500);
+	//    left_PWM(75);
+	//    m_wait(500);
+	//    left_PWM(100);
+	//    m_wait(500);
 }
 
 int main(void)
 {
-    //call the external setup functions
-    m_red(ON);
-    init();
-    timer1setup_cvargas(0);
-    timer3setup_cvargas();
-    m_usb_init();
+	//call the external setup functions
+	m_red(ON);
+	init();
+	timer1setup_cvargas(0);
+	timer3setup_cvargas();
+	m_usb_init();
 	// configure mRF
 	m_bus_init();
 	m_rf_open(CHANNEL,RXADDRESS,PACKET_LENGTH);
-    // make sure everything is off rn
-    timerswitch(false);
-    go('o');
-    m_wait(100); //to show successful startup
-    //while(!m_usb_isconnected()); // REMEMBER TO GET RID OF THIS YO
-    m_usb_tx_string("finished setup \n");
-    m_red(OFF);
-    m_green(OFF);//will come on before this if the wii_setup succeeded.
-    
-    m_wait(250);
-    m_usb_tx_string("entering wii setup\n");
-    wii_setup();
-    m_wait(250);
-    
-    m_usb_tx_string("in while loop\n" );
-
+	// make sure everything is off rn
+	timerswitch(false);
+	go('o');
+	m_wait(100); //to show successful startup
+	//while(!m_usb_isconnected()); // REMEMBER TO GET RID OF THIS YO
+	m_usb_tx_string("finished setup \n");
+	m_red(OFF);
+	m_green(OFF);//will come on before this if the wii_setup succeeded.
+	
+	m_wait(250);
+	m_usb_tx_string("entering wii setup\n");
+	wii_setup();
+	m_wait(250);
+	m_usb_tx_string("in while loop\n" );
+	
 	//start ADC conversion
 	set(ADCSRA,ADEN);
 	set(ADCSRA,ADSC);
-	
+	m_wait(100);
 	//set goal
 	if(check(PORTD,1)) //change to actual pin //experiment
 	{
@@ -667,51 +686,172 @@ int main(void)
 	{
 		goal = LEFT;
 	}
+	m_usb_tx_string("we're looking for puck");
+	
+	/* testing dip pins
+	while(1) {
+	if(check(PIND,3)) {
+	set(PORTF,6);
+	m_red(ON);
+	} else {
+	clear(PORTF,6);
+	m_red(OFF);
+	}
+	}*/
 
-    while (1) {
-        if (test) {
-            drivetest();
-        }/* else {
-            //do localization here
-            buylocal();
-            m_wait(250);
-            m_red(OFF);
-            m_green(OFF);
-            m_wait(250);
-        }*/
+	//testing commands
+	/*while(1) {
+		switch(state) {
+			case CONTROL:
+			if(buffer[0] == 0xA0) {
+				state = COMM_TEST;
+				} else if (buffer[0] == 0xA1) {
+				state = PLAY;
+				} else if (buffer[0] == 0xA2 || buffer[0] == 0xA3){
+				state  = PAUSE;
+				} else if (buffer[0] == 0xA4) {
+				state = PAUSE;
+				} else if (buffer[0] == 0xA6 || buffer[0] == 0xA7) {
+				state = PAUSE;
+			}
+			break;
+			case COMM_TEST:
+			//flash green twice
+			m_green(ON);
+			m_wait(10000);
+			m_green(OFF);
+			m_wait(10000);
+			m_green(ON);
+			m_wait(10000);
+			m_green(OFF);
+			m_wait(20000);
+			break;
+			
+			case PLAY:
+			m_green(ON);
+			m_wait(10000);
+			m_green(OFF);
+			m_wait(10000);
+			m_red(ON);
+			m_wait(10000);
+			m_red(OFF);
+			m_wait(20000);
+			break;
+			
+			case PAUSE:
+			m_red(ON);
+			m_wait(10000);
+			m_red(OFF);
+			m_wait(10000);
+			m_red(ON);
+			m_wait(10000);
+			m_red(OFF);
+			m_wait(20000);
+			break;
+			
+			case HALFTIME:
+			m_green(ON);
+			m_red(ON);
+			m_wait(10000);
+			m_red(OFF);
+			m_wait(10000);
+			m_red(ON);
+			m_wait(10000);
+			m_red(OFF);
+			m_green(OFF);
+			m_wait(20000);
+			break;
+		}
+	}
+*/
 
-	//GAME
-	switch(state) {
-		case LOOKING_FOR_PUCK:
+	//testing driving
+	/*
+	while(1) {
+		clear(PORTD,7);
+		m_green(ON);
+		toggle(PORTF,6);
+		left_PWM(5);
+		right_PWM(7);
+		go('f');
+		m_wait(20000);
+		toggle(PORTF,6);
+		go('o');
+		set(PORTD,7);
+		m_wait(500);
+		clear(PORTD,7);
+		m_wait(100000);
+		
+	}*/
+	while (1) {
+		//GAME
+		switch(state) {
+			case LOOKING_FOR_PUCK:
 			//do something. for now, rotate in place.
+			m_usb_tx_int(back_left);
+			m_usb_tx_string(" bleft- ");
+			m_usb_tx_int(back_right);
+			m_usb_tx_string(" bright- ");
+			m_usb_tx_int(front_left);
+			m_usb_tx_string(" fleft- ");
+			m_usb_tx_int(front_right);
+			m_usb_tx_string(" fright-\n");
+			
 			left_PWM(20);
 			right_PWM(20);
 			go('l');
 			if (back_left > threshold || back_right > threshold || front_left > threshold || front_right > threshold)
 			{
+				m_usb_tx_string("we found the puck");
 				state = POINT_TO_PUCK;
+				m_red(ON);
+				m_green(ON);
+				m_wait(100);
+				m_red(OFF);
+				m_green(OFF);
+				m_wait(100);
+				m_red(ON);
+				m_green(ON);
+				m_wait(100);
+				m_red(OFF);
+				m_green(OFF);
+				m_wait(100);
 			}
-		break;
-
-		case POINT_TO_PUCK:
+			break;
+			
+			case POINT_TO_PUCK:
+			m_usb_tx_int(back_left);
+			m_usb_tx_string(" bleft- ");
+			m_usb_tx_int(back_right);
+			m_usb_tx_string(" bright- ");
+			m_usb_tx_int(front_left);
+			m_usb_tx_string(" fleft- ");
+			m_usb_tx_int(front_right);
+			m_usb_tx_string(" fright-\n");
 			//back_right eye, turn right
 			if(back_right > back_left && back_right > front_right && back_right > front_left)
 			{
+				m_red(ON);
 				left_PWM(20);
 				right_PWM(20);
 				go('l');
+				m_wait(100);
+				m_red(OFF);
 			}
 			//likewise, back_left eye, turn left
 			else if (back_left > back_right && back_right > front_right && back_right > front_left)
 			{
+				m_green(ON);
 				left_PWM(20);
 				right_PWM(20);
 				go('r');
+				m_wait(100);
+				m_green(OFF);
 			}
-
+			
 			//idk about this threshold //experiment
 			if(front_right > threshold && front_left > threshold)
-			{	
+			{
 				//turn right if it's to the right
 				if(front_right > front_left)
 				{
@@ -724,19 +864,21 @@ int main(void)
 				{
 					left_PWM(20);
 					right_PWM(20);
-					go('l');					
+					go('l');
 				}
 			}
-
-			//if absolute value of different between front eyes is smaller than E, and the values 
+			
+			//if absolute value of different between front eyes is smaller than E, and the values
 			//are greater than some threshold (take into account when neither eye sees something)
 			if(abs(front_right-front_left) < epsilon && (front_left + front_right) > threshold) //experiment threshold
 			{
+				m_green(ON);
+				m_red(ON);
 				state = GO_TO_PUCK;
 			}
-		break;
-
-		case GO_TO_PUCK:
+			break;
+			
+			case GO_TO_PUCK:
 			//if we're still seeing the PUCK
 			if(abs(front_right-front_left) < epsilon && (front_left + front_right) > threshold) {
 				left_PWM(30);
@@ -744,8 +886,29 @@ int main(void)
 				go('f');
 			}
 			//check to see if we have the puck in the sloot
-			else if(check(PORTD,1)) // put in an actual pin to detect puck in sloot
+			else if(puck_eyes > 840) // put in an actual pin to detect puck in sloot
 			{
+				m_red(ON);
+				m_wait(100);
+				m_red(OFF);
+				m_red(ON);
+				m_wait(100);
+				m_red(OFF);
+				m_red(ON);
+				m_wait(100);
+				m_red(OFF);
+				m_red(ON);
+				m_wait(100);
+				m_red(OFF);
+				m_red(ON);
+				m_wait(100);
+				m_red(OFF);
+				m_red(ON);
+				m_wait(100);
+				m_red(OFF);
+				m_red(ON);
+				m_wait(100);
+				m_red(OFF);
 				state = WITH_PUCK;
 			}
 			else
@@ -753,50 +916,32 @@ int main(void)
 				state = POINT_TO_PUCK;
 				go('o');
 			}
-		break;
-
-		case WITH_PUCK:
+			break;
+			
+			case WITH_PUCK:
 			//turn to goal
 			buylocal();
-/*	 /-----------------------\
-	 |						 |
-Left |						 | Right
-90	 |						 |	-90
-	 |						 |
-	 \-----------------------/	
-*/			switch (goal)
+			
+			//          UP 0
+			/*	 /-----------------------\
+			|						 |
+			Left |						 | Right
+			-90	 |						 |	90
+			|						 |
+			\-----------------------/
+			*/
+			switch (goal)
 			{
 				RIGHT:
-					//turn towards theta, in a slow arc.
-					//experiment, need to check all these values
-				if (theta < -88)
-				{
-					left_PWM(40);
-					right_PWM(50);
-					go('f');
-				}
-				else if (theta > 92)
+				//turn towards theta, in a slow arc.
+				//experiment, need to check all these values
+				if (abs(theta) < 88)
 				{
 					left_PWM(50);
 					right_PWM(40);
 					go('f');
 				}
-				else 
-				{	//I mean why not? lololol
-					left_PWM(90);
-					right_PWM(90);
-					go('f');
-				}
-				break;
-			
-				LEFT:
-				if (theta < 88)
-				{
-					left_PWM(50);
-					right_PWM(40);
-					go('f');
-				}
-				else if (theta > 92)
+				else if (abs(theta) > 92)
 				{
 					left_PWM(40);
 					right_PWM(50);
@@ -804,33 +949,54 @@ Left |						 | Right
 				}
 				else
 				{	//I mean why not? lololol
-					left_PWM(90);
-					right_PWM(90);
+					left_PWM(50);
+					right_PWM(50);
+					go('f');
+				}
+				break;
+				
+				LEFT:
+				if (-abs(theta) > -88)
+				{
+					left_PWM(40);
+					right_PWM(50);
+					go('f');
+				}
+				else if (-abs(theta) < -92)
+				{
+					left_PWM(50);
+					right_PWM(40);
+					go('f');
+				}
+				else
+				{	//I mean why not? lololol
+					left_PWM(50);
+					right_PWM(50);
 					go('f');
 				}
 				break;
 			}
-			if(!check(PORTD,1)) //put in an actual pin here for puck //experiment
+			if(puck_eyes < 840) //put in an actual pin here for puck //experiment
 			{
 				state = POINT_TO_PUCK;
 			}
-		break;
-
-		case CONTROL:
+			break;
+			
+			case CONTROL:
 			if(buffer[0] == 0xA0) {
 				state = COMM_TEST;
-			} else if (buffer[0] == 0xA1) {
+				} else if (buffer[0] == 0xA1) {
 				state = PLAY;
-			} else if (buffer[0] == 0xA2 || buffer[0] == 0xA3){
+				} else if (buffer[0] == 0xA2 || buffer[0] == 0xA3){
 				state  = PAUSE;
-			} else if (buffer[0] == 0xA4) {
+				} else if (buffer[0] == 0xA4) {
 				state = PAUSE;
-			} else if (buffer[0] == 0xA6 || buffer[0] == 0xA7) {
+				} else if (buffer[0] == 0xA6 || buffer[0] == 0xA7) {
 				state = PAUSE;
 			}
-		break;
-		
-		case COMM_TEST:
+			break;
+			
+			case COMM_TEST:
 			//flash blue LED
 			clear(PORTB,2);
 			m_wait(1000);
@@ -838,27 +1004,27 @@ Left |						 | Right
 			m_wait(1000);
 			clear(PORTB,2);
 			state = PAUSE;
-		break;
-
-		case PLAY:
+			break;
+			
+			case PLAY:
 			//for now just look for puck!
 			state = LOOKING_FOR_PUCK;
-		break;
+			break;
 			
-		case PAUSE:
+			case PAUSE:
 			go('o');
 			left_PWM(0);
 			right_PWM(0);
-		break;
-
-		case HALFTIME:
+			break;
+			
+			case HALFTIME:
 			go('o');
 			left_PWM(0);
 			right_PWM(0);
-		break;
-    }
-    return 0;   /* never reached */
-}
+			break;
+		}
+	}
+	return 0;   /* never reached */
 }
 
 ISR(ADC_vect)
@@ -869,24 +1035,33 @@ ISR(ADC_vect)
 		set(ADMUX,MUX0);
 		adc = F1;
 		break;
-
+		
 		case F1:
 		back_right = ADC;
 		set(ADMUX,MUX2);
 		clear(ADMUX,MUX0);
 		adc = F4;
 		break;
-
+		
 		case F4:
 		front_left = ADC;
 		set(ADMUX,MUX0);
 		adc = F5;
 		break;
-
+		
 		case F5:
 		front_right = ADC;
+		set(ADMUX,MUX1);
+		set(ADMUX,MUX5);
+		adc = B4;
+		break;
+		
+		case B4:
+		puck_eyes = ADC;
 		clear(ADMUX,MUX0);
+		clear(ADMUX,MUX1);
 		clear(ADMUX,MUX2);
+		clear(ADMUX,MUX5);
 		adc = F0;
 		break;
 	}
@@ -897,7 +1072,7 @@ ISR(ADC_vect)
 
 ISR(INT2_vect)
 {
-m_rf_read(buffer,PACKET_LENGTH);
-state = CONTROL;
-//save old state??
+	m_rf_read(buffer,PACKET_LENGTH);
+	state = CONTROL;
+	//save old state??
 }
