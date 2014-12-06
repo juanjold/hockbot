@@ -31,7 +31,8 @@ wii_setup() if it failz
 #define enableNUM 0 //B0 for enable on the motor driver. enables both motors
 
 #define timersupto 40000
-#define threshold 200  //experiment
+#define threshold 100  //experiment
+#define puck_find_threshold 200
 
 #define epsilon 20 //experiment
 
@@ -98,11 +99,14 @@ State state = LOOKING_FOR_PUCK; //change this? //experiment
 
 //Sensing
 //eyes
-int back_right = 0;
-int back_left = 0;
-int front_right = 0;
-int front_left = 0;
-int puck_eyes = 0;
+volatile int back_right = 0;
+volatile int back_left = 0;
+volatile int front_right = 0;
+volatile int front_left = 0;
+volatile int puck_eyes = 0;
+volatile int puck_eyes_2 = 0;
+volatile int puck_eyes_3 = 0;
+volatile int puck_eyes_add = 0;
 
 typedef enum{
 	F0,
@@ -115,19 +119,19 @@ ADC_PIN adc = F0;
 
 void wii_setup(){
 	char sensoron = m_wii_open();
-	m_usb_tx_uint(sensoron);
-	m_usb_tx_string(" sensor on \n" );
+	//m_usb_tx_uint(sensoron);
+	//m_usb_tx_string(" sensor on \n" );
 }
 
 void wii_read(){
 	char didreadwork_char = m_wii_read( data ); //NOT SURE IF THIS IS RIGHT
 	//m_usb_tx_uint(didreadwork_char);
 	int i;
-	for (i = 0; i < 12; i++){
-		m_usb_tx_uint(data[i]);
-		m_usb_tx_string(" ");
+	/*for (i = 0; i < 12; i++){
+	m_usb_tx_uint(data[i]);
+	m_usb_tx_string(" ");
 	}
-	m_usb_tx_string("read \n" );
+	m_usb_tx_string("read \n" )*/;
 	if (didreadwork_char == 1) {
 		read_success  = true;
 		m_red(ON);
@@ -291,13 +295,13 @@ void calculate_thetas(){
 	
 	//make the vect_bottomtotop a unit vector
 	magnitude = sqrt( pow(vect_bottomtotop[0],2) + pow(vect_bottomtotop[1],2) );
-	
+	/*
 	m_usb_tx_string(" BEFORE " );
 	m_usb_tx_string(" vect_bottomtotop[0]: " );
 	m_usb_tx_int(vect_bottomtotop[0]);
 	m_usb_tx_string(" vect_bottomtotop[1]: " );
 	m_usb_tx_int(vect_bottomtotop[1]);
-	
+	*/
 	vect_bottomtotop[0] = vect_bottomtotop[0] / magnitude;
 	vect_bottomtotop[1] = vect_bottomtotop[1] / magnitude;
 	
@@ -306,6 +310,7 @@ void calculate_thetas(){
 	
 	theta = heresyoursign * acos(dot);
 	
+	/*
 	m_usb_tx_string(" AFTER " );
 	m_usb_tx_string(" heresyoursign: " );
 	m_usb_tx_int(heresyoursign);
@@ -318,6 +323,7 @@ void calculate_thetas(){
 	m_usb_tx_string(" vect_bottomtotop[1]: " );
 	m_usb_tx_int(vect_bottomtotop[1]);
 	m_usb_tx_string("  ");
+	*/
 }
 
 void calculate_rotation() {
@@ -528,10 +534,18 @@ void init(){
 	//solenoid
 	set(DDRD,7);
 	clear(PORTD,7);
+
+	//LED 1 - bLUE
+	set(DDRF,6);
+	clear(PORTF,6);
+
+	//LED 2 - RED
+	set(DDRF,7);
+	clear(PORTF,7);
 	
-	//DIP switches
-	//clear(DDRD,3);
-	//set(PORTD,3d);
+	//DIP switches //trying b1
+	clear(DDRB,1);
+	//set(PORTD,3);
 	
 	//ADC
 	clear(DDRF,0);
@@ -663,125 +677,157 @@ int main(void)
 	go('o');
 	m_wait(100); //to show successful startup
 	//while(!m_usb_isconnected()); // REMEMBER TO GET RID OF THIS YO
-	m_usb_tx_string("finished setup \n");
+	//m_usb_tx_string("finished setup \n");
 	m_red(OFF);
 	m_green(OFF);//will come on before this if the wii_setup succeeded.
 	
 	m_wait(250);
-	m_usb_tx_string("entering wii setup\n");
+	//m_usb_tx_string("entering wii setup\n");
 	wii_setup();
 	m_wait(250);
-	m_usb_tx_string("in while loop\n" );
+	//m_usb_tx_string("in while loop\n" );
 	
 	//start ADC conversion
 	set(ADCSRA,ADEN);
 	set(ADCSRA,ADSC);
 	m_wait(100);
 	//set goal
-	if(check(PORTD,1)) //change to actual pin //experiment
+	if(check(PINB,1)) //change to actual pin //experiment
 	{
+		//red LED indicates right goal
 		goal = RIGHT;
+		set(PORTF,6);
+		m_wait(2000);
+		clear(PORTF,6);
 	}
 	else
 	{
+		//blue LED indicates left goal
 		goal = LEFT;
+		set(PORTF,7);
+		m_wait(2000);
+		clear(PORTF,7);
 	}
-	m_usb_tx_string("we're looking for puck");
+
+	//m_usb_tx_string("we're looking for puck");
 	
-	/* testing dip pins
-	while(1) {
-	if(check(PIND,3)) {
+	/*while(1) {
+	left_PWM(10);
+	right_PWM(10);
+	go('f');
+	m_wait(20000);
+	go('o');
+	m_wait(20000);
+	left_PWM(50);
+	right_PWM(50);
+	go('f');
+	m_wait(20000);
+	go('o');
+	m_wait(50000);
+	}*/
+	// testing dip pins
+
+	// while(1) {
+	/*clear(PORTF,6);
+	m_wait(1000);
 	set(PORTF,6);
-	m_red(ON);
-	} else {
+	m_wait(1000);
 	clear(PORTF,6);
+	*/
+	/*if(check(PIND,3)) {
+	//set(PORTF,6);
+	m_red(ON);
+	m_wait(100);
+	} else {
+	//clear(PORTF,6);
 	m_red(OFF);
+	m_wait(100);
 	}
 	}*/
 
 	//testing commands
 	/*while(1) {
-		switch(state) {
-			case CONTROL:
-			if(buffer[0] == 0xA0) {
-				state = COMM_TEST;
-				} else if (buffer[0] == 0xA1) {
-				state = PLAY;
-				} else if (buffer[0] == 0xA2 || buffer[0] == 0xA3){
-				state  = PAUSE;
-				} else if (buffer[0] == 0xA4) {
-				state = PAUSE;
-				} else if (buffer[0] == 0xA6 || buffer[0] == 0xA7) {
-				state = PAUSE;
-			}
-			break;
-			case COMM_TEST:
-			//flash green twice
-			m_green(ON);
-			m_wait(10000);
-			m_green(OFF);
-			m_wait(10000);
-			m_green(ON);
-			m_wait(10000);
-			m_green(OFF);
-			m_wait(20000);
-			break;
-			
-			case PLAY:
-			m_green(ON);
-			m_wait(10000);
-			m_green(OFF);
-			m_wait(10000);
-			m_red(ON);
-			m_wait(10000);
-			m_red(OFF);
-			m_wait(20000);
-			break;
-			
-			case PAUSE:
-			m_red(ON);
-			m_wait(10000);
-			m_red(OFF);
-			m_wait(10000);
-			m_red(ON);
-			m_wait(10000);
-			m_red(OFF);
-			m_wait(20000);
-			break;
-			
-			case HALFTIME:
-			m_green(ON);
-			m_red(ON);
-			m_wait(10000);
-			m_red(OFF);
-			m_wait(10000);
-			m_red(ON);
-			m_wait(10000);
-			m_red(OFF);
-			m_green(OFF);
-			m_wait(20000);
-			break;
-		}
+	switch(state) {
+	case CONTROL:
+	if(buffer[0] == 0xA0) {
+	state = COMM_TEST;
+	} else if (buffer[0] == 0xA1) {
+	state = PLAY;
+	} else if (buffer[0] == 0xA2 || buffer[0] == 0xA3){
+	state  = PAUSE;
+	} else if (buffer[0] == 0xA4) {
+	state = PAUSE;
+	} else if (buffer[0] == 0xA6 || buffer[0] == 0xA7) {
+	state = PAUSE;
 	}
-*/
+	break;
+	case COMM_TEST:
+	//flash green twice
+	m_green(ON);
+	m_wait(10000);
+	m_green(OFF);
+	m_wait(10000);
+	m_green(ON);
+	m_wait(10000);
+	m_green(OFF);
+	m_wait(20000);
+	break;
+	
+	case PLAY:
+	m_green(ON);
+	m_wait(10000);
+	m_green(OFF);
+	m_wait(10000);
+	m_red(ON);
+	m_wait(10000);
+	m_red(OFF);
+	m_wait(20000);
+	break;
+	
+	case PAUSE:
+	m_red(ON);
+	m_wait(10000);
+	m_red(OFF);
+	m_wait(10000);
+	m_red(ON);
+	m_wait(10000);
+	m_red(OFF);
+	m_wait(20000);
+	break;
+	
+	case HALFTIME:
+	m_green(ON);
+	m_red(ON);
+	m_wait(10000);
+	m_red(OFF);
+	m_wait(10000);
+	m_red(ON);
+	m_wait(10000);
+	m_red(OFF);
+	m_green(OFF);
+	m_wait(20000);
+	break;
+	}
+	}
+	*/
 
 	//testing driving
 	/*
 	while(1) {
-		clear(PORTD,7);
-		m_green(ON);
-		toggle(PORTF,6);
-		left_PWM(5);
-		right_PWM(7);
-		go('f');
-		m_wait(20000);
-		toggle(PORTF,6);
-		go('o');
-		set(PORTD,7);
-		m_wait(500);
-		clear(PORTD,7);
-		m_wait(100000);
-		
+	clear(PORTD,7);
+	m_green(ON);
+	toggle(PORTF,6);
+	left_PWM(5);
+	right_PWM(7);
+	go('f');
+	m_wait(20000);
+	toggle(PORTF,6);
+	go('o');
+	set(PORTD,7);
+	m_wait(500);
+	clear(PORTD,7);
+	m_wait(100000);
+	
 	}*/
 	while (1) {
 		//GAME
@@ -795,27 +841,19 @@ int main(void)
 			m_usb_tx_int(front_left);
 			m_usb_tx_string(" fleft- ");
 			m_usb_tx_int(front_right);
-			m_usb_tx_string(" fright-\n");
-			
-			left_PWM(20);
-			right_PWM(20);
+			m_usb_tx_string(" fright- ");
+			m_usb_tx_int(puck_eyes);
+			m_usb_tx_string(" eyes-\n");
+
+			left_PWM(50);
+			right_PWM(50);
 			go('l');
-			if (back_left > threshold || back_right > threshold || front_left > threshold || front_right > threshold)
+			if (back_left > threshold || back_right > threshold ||
+			front_left > threshold || front_right > threshold)
 			{
-				m_usb_tx_string("we found the puck");
+				//m_usb_tx_string("we found the puck");
 				state = POINT_TO_PUCK;
-				m_red(ON);
 				m_green(ON);
-				m_wait(100);
-				m_red(OFF);
-				m_green(OFF);
-				m_wait(100);
-				m_red(ON);
-				m_green(ON);
-				m_wait(100);
-				m_red(OFF);
-				m_green(OFF);
-				m_wait(100);
 			}
 			break;
 			
@@ -827,43 +865,39 @@ int main(void)
 			m_usb_tx_int(front_left);
 			m_usb_tx_string(" fleft- ");
 			m_usb_tx_int(front_right);
-			m_usb_tx_string(" fright-\n");
+			m_usb_tx_string(" fright- ");
+			m_usb_tx_int(puck_eyes);
+			m_usb_tx_string(" eyes-\n");
 			//back_right eye, turn right
 			if(back_right > back_left && back_right > front_right && back_right > front_left)
 			{
-				m_red(ON);
-				left_PWM(20);
-				right_PWM(20);
-				go('l');
-				m_wait(100);
-				m_red(OFF);
+				left_PWM(50);
+				right_PWM(50);
+				go('r');
 			}
 			//likewise, back_left eye, turn left
 			else if (back_left > back_right && back_right > front_right && back_right > front_left)
 			{
-				m_green(ON);
-				left_PWM(20);
-				right_PWM(20);
-				go('r');
-				m_wait(100);
-				m_green(OFF);
+				left_PWM(50);
+				right_PWM(50);
+				go('l');
 			}
 			
 			//idk about this threshold //experiment
-			if(front_right > threshold && front_left > threshold)
+			if(front_right > threshold || front_left > threshold)
 			{
 				//turn right if it's to the right
 				if(front_right > front_left)
 				{
-					left_PWM(20);
-					right_PWM(20);
+					left_PWM(50);
+					right_PWM(50);
 					go('r');
 				}
 				//
 				else if (front_left > front_right)
 				{
-					left_PWM(20);
-					right_PWM(20);
+					left_PWM(50);
+					right_PWM(50);
 					go('l');
 				}
 			}
@@ -881,40 +915,23 @@ int main(void)
 			case GO_TO_PUCK:
 			//if we're still seeing the PUCK
 			if(abs(front_right-front_left) < epsilon && (front_left + front_right) > threshold) {
-				left_PWM(30);
-				right_PWM(30);
+				left_PWM(50);
+				right_PWM(50);
 				go('f');
-			}
-			//check to see if we have the puck in the sloot
-			else if(puck_eyes > 840) // put in an actual pin to detect puck in sloot
-			{
-				m_red(ON);
-				m_wait(100);
-				m_red(OFF);
-				m_red(ON);
-				m_wait(100);
-				m_red(OFF);
-				m_red(ON);
-				m_wait(100);
-				m_red(OFF);
-				m_red(ON);
-				m_wait(100);
-				m_red(OFF);
-				m_red(ON);
-				m_wait(100);
-				m_red(OFF);
-				m_red(ON);
-				m_wait(100);
-				m_red(OFF);
-				m_red(ON);
-				m_wait(100);
-				m_red(OFF);
-				state = WITH_PUCK;
 			}
 			else
 			{
 				state = POINT_TO_PUCK;
 				go('o');
+			}
+			//check to see if we have the puck in the sloot
+			if(puck_eyes   > 840){ puck_eyes_add++;}
+			if(puck_eyes_2 > 840){ puck_eyes_add++;}
+			if(puck_eyes_3 > 840){ puck_eyes_add++;}
+			if(puck_eyes_add >= 2) // put in an actual pin to detect puck in sloot
+			{
+				state = WITH_PUCK;
+				puck_eyes_add = 0;
 			}
 			break;
 			
@@ -949,8 +966,8 @@ int main(void)
 				}
 				else
 				{	//I mean why not? lololol
-					left_PWM(50);
-					right_PWM(50);
+					left_PWM(80);
+					right_PWM(80);
 					go('f');
 				}
 				break;
@@ -976,9 +993,13 @@ int main(void)
 				}
 				break;
 			}
-			if(puck_eyes < 840) //put in an actual pin here for puck //experiment
+			if(puck_eyes > 840){ puck_eyes_add++;}
+			if(puck_eyes_2 > 840){ puck_eyes_add++;}
+			if(puck_eyes_3 > 840){ puck_eyes_add++;}
+			if(puck_eyes_add < 2) //put in an actual pin here for puck //experiment
 			{
 				state = POINT_TO_PUCK;
+				puck_eyes_add = 0;
 			}
 			break;
 			
@@ -998,20 +1019,23 @@ int main(void)
 			
 			case COMM_TEST:
 			//flash blue LED
-			clear(PORTB,2);
+			clear(PORTF,6);
 			m_wait(1000);
-			set(PORTB,2);
+			set(PORTF,6);
 			m_wait(1000);
-			clear(PORTB,2);
-			state = PAUSE;
+			clear(PORTF,6);
+			state = LOOKING_FOR_PUCK;
 			break;
 			
 			case PLAY:
 			//for now just look for puck!
+			m_red(ON);
 			state = LOOKING_FOR_PUCK;
+			set(PORTF,7);
 			break;
 			
 			case PAUSE:
+			clear(PORTF,7);
 			go('o');
 			left_PWM(0);
 			right_PWM(0);
@@ -1057,6 +1081,8 @@ ISR(ADC_vect)
 		break;
 		
 		case B4:
+		puck_eyes_3 = puck_eyes_2;
+		puck_eyes_2 = puck_eyes;
 		puck_eyes = ADC;
 		clear(ADMUX,MUX0);
 		clear(ADMUX,MUX1);
