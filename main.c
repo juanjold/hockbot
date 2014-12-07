@@ -113,7 +113,8 @@ typedef enum{
 	F1,
 	F4,
 	F5,
-	B4
+	B4,
+	B5 // left eye
 } ADC_PIN;
 ADC_PIN adc = F0;
 
@@ -514,9 +515,6 @@ void init_ADC()
 	clear(ADMUX,MUX1);
 	clear(ADMUX,MUX0);
 	
-	//set pin for output
-	set(DDRF,5);
-	
 	//enable interrupts
 	set(ADCSRA,ADIE);
 }
@@ -544,8 +542,8 @@ void init(){
 	clear(PORTF,7);
 	
 	//DIP switches //trying b1
-	clear(DDRB,1);
-	//set(PORTD,3);
+	clear(DDRB,1); //switch1
+	clear(DDRB,2); //switch2
 	
 	//ADC
 	clear(DDRF,0);
@@ -696,7 +694,7 @@ int main(void)
 	{
 		//red LED indicates right goal
 		goal = RIGHT;
-		set(PORTF,6);
+		set(PORTF,6);//red
 		m_wait(2000);
 		clear(PORTF,6);
 	}
@@ -949,46 +947,46 @@ int main(void)
 			*/
 			switch (goal)
 			{
-				RIGHT:
+				case RIGHT:
 				//turn towards theta, in a slow arc.
 				//experiment, need to check all these values
 				if (abs(theta) < 88)
 				{
 					left_PWM(50);
-					right_PWM(40);
+					right_PWM(45);
 					go('f');
 				}
 				else if (abs(theta) > 92)
 				{
-					left_PWM(40);
+					left_PWM(45);
 					right_PWM(50);
 					go('f');
 				}
 				else
 				{	//I mean why not? lololol
-					left_PWM(80);
-					right_PWM(80);
+					left_PWM(60);
+					right_PWM(60);
 					go('f');
 				}
 				break;
 				
-				LEFT:
+				case LEFT:
 				if (-abs(theta) > -88)
 				{
-					left_PWM(40);
+					left_PWM(45);
 					right_PWM(50);
 					go('f');
 				}
 				else if (-abs(theta) < -92)
 				{
 					left_PWM(50);
-					right_PWM(40);
+					right_PWM(45);
 					go('f');
 				}
 				else
 				{	//I mean why not? lololol
-					left_PWM(50);
-					right_PWM(50);
+					left_PWM(60);
+					right_PWM(60);
 					go('f');
 				}
 				break;
@@ -1024,18 +1022,32 @@ int main(void)
 			set(PORTF,6);
 			m_wait(1000);
 			clear(PORTF,6);
-			state = LOOKING_FOR_PUCK;
+			state = PAUSE;
 			break;
 			
 			case PLAY:
 			//for now just look for puck!
 			m_red(ON);
 			state = LOOKING_FOR_PUCK;
-			set(PORTF,7);
+			if(check(PINB,2))
+			{
+				set(PORTF,6);//red
+			}
+			else
+			{	
+				set(PORTF,7);//blue
+			}
 			break;
 			
 			case PAUSE:
-			clear(PORTF,7);
+			if(check(PINB,2))
+			{
+				clear(PORTF,6);//red
+			}
+			else
+			{
+				clear(PORTF,7);//blue
+			}
 			go('o');
 			left_PWM(0);
 			right_PWM(0);
