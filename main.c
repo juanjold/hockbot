@@ -18,12 +18,15 @@ wii_setup() if it failz
 #include "m_wii.h"
 #include "m_usb.h"
 #include "m_bus.h"
+#include "m_rf.h"
 
-#define motor1 PORTB
+
+//just changed motors, 1 and 2 are now c and b respectively
+#define motor1 PORTC
 #define direction1 7 //high is forward and low is backwards
 #define PWM1 6 //this is the PIN on register that will be used to PWM the motor enable... output of timer1
 
-#define motor2 PORTC
+#define motor2 PORTB
 #define direction2 7 //high is forward and low is backwards
 #define PWM2 6
 
@@ -120,6 +123,37 @@ ADC_PIN adc = F0;
 
 void wii_setup(){
 	char sensoron = m_wii_open();
+	m_usb_tx_string("is sensor on? ");
+	m_usb_tx_int(sensoron);
+	m_usb_tx_string("\n");
+	if(sensoron == 1) {
+		set(PORTF,6);
+		m_wait(2000);
+		clear(PORTF,6);
+	} else {
+			m_green(ON);
+			set(PORTF,6);
+			m_wait(2000);
+			clear(PORTF,6);
+			m_wait(1000);
+			set(PORTF,6);
+			m_wait(2000);
+			clear(PORTF,6);
+			m_wait(1000);
+			set(PORTF,7);
+			m_wait(2000);
+			clear(PORTF,7);
+			m_wait(1000);
+			set(PORTF,6);
+			m_wait(2000);
+			clear(PORTF,6);
+			m_wait(1000);
+			set(PORTF,6);
+			m_wait(2000);
+			clear(PORTF,6);
+			m_wait(1000);
+			m_green(OFF);
+	}
 	//m_usb_tx_uint(sensoron);
 	//m_usb_tx_string(" sensor on \n" );
 }
@@ -368,14 +402,14 @@ void buylocal() {
 	
 	//the error starts here
 	calculate_rotation();//matrix multiplication to spin the matrix (lol)
-	/*
+	
 	m_usb_tx_int(position_current[0]);
 	m_usb_tx_string(",");
 	m_usb_tx_int(position_current[1]);
 	m_usb_tx_string(" theta: ");
 	m_usb_tx_int((theta*180)/M_PI);
 	m_usb_tx_string("\n");
-	*/
+	
 	//current positions are now set in position_current[] vector
 }
 
@@ -507,6 +541,7 @@ void init_ADC()
 	set(DIDR0,ADC1D);
 	set(DIDR0,ADC4D);
 	set(DIDR0,ADC5D);
+	
 	set(DIDR2,ADC11D);
 	
 	//channel sel
@@ -532,18 +567,20 @@ void init(){
 	//solenoid
 	set(DDRD,7);
 	clear(PORTD,7);
-
+	
 	//LED 1 - bLUE
 	set(DDRF,6);
 	clear(PORTF,6);
-
+	
 	//LED 2 - RED
 	set(DDRF,7);
 	clear(PORTF,7);
 	
 	//DIP switches //trying b1
-	clear(DDRB,1); //switch1
-	clear(DDRB,2); //switch2
+	clear(DDRD,5); //switch1
+	clear(DDRD,6); //switch2
+	//clear(PORTD,5);
+	//clear(PORTD,6);
 	
 	//ADC
 	clear(DDRF,0);
@@ -556,6 +593,12 @@ void init(){
 	init_ADC();
 	//enable global interrupts
 	sei();
+
+	timer1setup_cvargas(0);
+	timer3setup_cvargas();
+	m_usb_init();
+	// configure mRF
+	m_bus_init();
 }
 
 void go(char direction){
@@ -647,205 +690,59 @@ void drivetest(){
 	m_wait(1000);
 	left_PWM(100);
 	m_wait(1000);
-	//    right_PWM(50)
-	//
-	//    go('f');
-	//    m_wait(500);
-	//    left_PWM(10);
-	//    m_wait(500);
-	//    left_PWM(75);
-	//    m_wait(500);
-	//    left_PWM(100);
-	//    m_wait(500);
 }
 
-int main(void)
-{
+int main(void){
 	//call the external setup functions
 	m_red(ON);
 	init();
-	timer1setup_cvargas(0);
-	timer3setup_cvargas();
-	m_usb_init();
-	// configure mRF
-	m_bus_init();
+	m_red(OFF);
 	m_rf_open(CHANNEL,RXADDRESS,PACKET_LENGTH);
 	// make sure everything is off rn
 	timerswitch(false);
 	go('o');
 	m_wait(100); //to show successful startup
 	//while(!m_usb_isconnected()); // REMEMBER TO GET RID OF THIS YO
-	//m_usb_tx_string("finished setup \n");
-	m_red(OFF);
+	m_usb_tx_string("finished setup \n");
 	m_green(OFF);//will come on before this if the wii_setup succeeded.
-	
 	m_wait(250);
-	//m_usb_tx_string("entering wii setup\n");
+	m_usb_tx_string("entering wii setup\n");
 	wii_setup();
 	m_wait(250);
-	//m_usb_tx_string("in while loop\n" );
+	m_usb_tx_string("in while loop\n" );
 	
 	//start ADC conversion
 	set(ADCSRA,ADEN);
 	set(ADCSRA,ADSC);
 	m_wait(100);
 	//set goal
-	if(check(PINB,1)) //change to actual pin //experiment
-	{
-		//red LED indicates right goal
-		goal = RIGHT;
-		set(PORTF,6);//red
-		m_wait(2000);
-		clear(PORTF,6);
-	}
-	else
-	{
-		//blue LED indicates left goal
-		goal = LEFT;
-		set(PORTF,7);
-		m_wait(2000);
-		clear(PORTF,7);
-	}
+	int led = 7;
+	//   if(check(PIND,5)) //change to actual pin // PIN D5 sets the goal
+	//    {
+	//blue LED indicates right goal
+	goal = RIGHT;
+	set(PORTF,7);//blue
+	m_wait(2000);
+	clear(PORTF,7);
 
-	//m_usb_tx_string("we're looking for puck");
-	
-	/*while(1) {
-	left_PWM(10);
-	right_PWM(10);
-	go('f');
-	m_wait(20000);
-	go('o');
-	m_wait(20000);
-	left_PWM(50);
-	right_PWM(50);
-	go('f');
-	m_wait(20000);
-	go('o');
-	m_wait(50000);
-	}*/
-	// testing dip pins
-
-	// while(1) {
-	/*clear(PORTF,6);
-	m_wait(1000);
-	set(PORTF,6);
-	m_wait(1000);
-	clear(PORTF,6);
-	*/
-	/*if(check(PIND,3)) {
-	//set(PORTF,6);
-	m_red(ON);
-	m_wait(100);
-	} else {
-	//clear(PORTF,6);
-	m_red(OFF);
-	m_wait(100);
-	}
-	}*/
-
-	//testing commands
-	/*while(1) {
-	switch(state) {
-	case CONTROL:
-	if(buffer[0] == 0xA0) {
-	state = COMM_TEST;
-	} else if (buffer[0] == 0xA1) {
-	state = PLAY;
-	} else if (buffer[0] == 0xA2 || buffer[0] == 0xA3){
-	state  = PAUSE;
-	} else if (buffer[0] == 0xA4) {
-	state = PAUSE;
-	} else if (buffer[0] == 0xA6 || buffer[0] == 0xA7) {
-	state = PAUSE;
-	}
-	break;
-	case COMM_TEST:
-	//flash green twice
-	m_green(ON);
-	m_wait(10000);
-	m_green(OFF);
-	m_wait(10000);
-	m_green(ON);
-	m_wait(10000);
-	m_green(OFF);
-	m_wait(20000);
-	break;
-	
-	case PLAY:
-	m_green(ON);
-	m_wait(10000);
-	m_green(OFF);
-	m_wait(10000);
-	m_red(ON);
-	m_wait(10000);
-	m_red(OFF);
-	m_wait(20000);
-	break;
-	
-	case PAUSE:
-	m_red(ON);
-	m_wait(10000);
-	m_red(OFF);
-	m_wait(10000);
-	m_red(ON);
-	m_wait(10000);
-	m_red(OFF);
-	m_wait(20000);
-	break;
-	
-	case HALFTIME:
-	m_green(ON);
-	m_red(ON);
-	m_wait(10000);
-	m_red(OFF);
-	m_wait(10000);
-	m_red(ON);
-	m_wait(10000);
-	m_red(OFF);
-	m_green(OFF);
-	m_wait(20000);
-	break;
-	}
-	}
-	*/
-
-	//testing driving
-	/*
-	while(1) {
-	clear(PORTD,7);
-	m_green(ON);
-	toggle(PORTF,6);
-	left_PWM(5);
-	right_PWM(7);
-	go('f');
-	m_wait(20000);
-	toggle(PORTF,6);
-	go('o');
-	set(PORTD,7);
-	m_wait(500);
-	clear(PORTD,7);
-	m_wait(100000);
-	
-	}*/
 	while (1) {
-		//GAME
 		switch(state) {
 			case LOOKING_FOR_PUCK:
 			//do something. for now, rotate in place.
-			m_usb_tx_int(back_left);
-			m_usb_tx_string(" bleft- ");
-			m_usb_tx_int(back_right);
-			m_usb_tx_string(" bright- ");
-			m_usb_tx_int(front_left);
-			m_usb_tx_string(" fleft- ");
-			m_usb_tx_int(front_right);
-			m_usb_tx_string(" fright- ");
-			m_usb_tx_int(puck_eyes);
-			m_usb_tx_string(" eyes-\n");
-
-			left_PWM(50);
-			right_PWM(50);
+			left_PWM(26);
+			right_PWM(26);
 			go('l');
+					/*	m_usb_tx_string("F0: ");
+						m_usb_tx_int(back_left);
+						m_usb_tx_string("    | F1: ");
+						m_usb_tx_int(back_right);
+						m_usb_tx_string("    | F4: ");
+						m_usb_tx_int(front_left);
+						m_usb_tx_string("    | F5: ");
+						m_usb_tx_int(front_right);
+						m_usb_tx_string("    | B5: ");
+						m_usb_tx_int(puck_eyes);
+						m_usb_tx_string("\n");*/
 			if (back_left > threshold || back_right > threshold ||
 			front_left > threshold || front_right > threshold)
 			{
@@ -856,53 +753,55 @@ int main(void)
 			break;
 			
 			case POINT_TO_PUCK:
+			/*m_usb_tx_string("BL: ");
 			m_usb_tx_int(back_left);
-			m_usb_tx_string(" bleft- ");
+			m_usb_tx_string("    | BR: ");
 			m_usb_tx_int(back_right);
-			m_usb_tx_string(" bright- ");
+			m_usb_tx_string("    | FL: ");
 			m_usb_tx_int(front_left);
-			m_usb_tx_string(" fleft- ");
+			m_usb_tx_string("    | Fr: ");
 			m_usb_tx_int(front_right);
-			m_usb_tx_string(" fright- ");
+			m_usb_tx_string("    | PEL: ");
 			m_usb_tx_int(puck_eyes);
-			m_usb_tx_string(" eyes-\n");
+			m_usb_tx_string("\n");
+			*/
 			//back_right eye, turn right
 			if(back_right > back_left && back_right > front_right && back_right > front_left)
 			{
-				left_PWM(50);
-				right_PWM(50);
+				left_PWM(26);
+				right_PWM(26);
 				go('r');
 			}
 			//likewise, back_left eye, turn left
 			else if (back_left > back_right && back_right > front_right && back_right > front_left)
 			{
-				left_PWM(50);
-				right_PWM(50);
+				left_PWM(26);
+				right_PWM(26);
 				go('l');
 			}
 			
 			//idk about this threshold //experiment
-			if(front_right > threshold || front_left > threshold)
+			else if(front_right > threshold || front_left > threshold)
 			{
 				//turn right if it's to the right
 				if(front_right > front_left)
 				{
-					left_PWM(50);
-					right_PWM(50);
+					left_PWM(26);
+					right_PWM(26);
 					go('r');
 				}
 				//
 				else if (front_left > front_right)
 				{
-					left_PWM(50);
-					right_PWM(50);
+					left_PWM(26);
+					right_PWM(26);
 					go('l');
 				}
 			}
 			
 			//if absolute value of different between front eyes is smaller than E, and the values
 			//are greater than some threshold (take into account when neither eye sees something)
-			if(abs(front_right-front_left) < epsilon && (front_left + front_right) > threshold) //experiment threshold
+			if((abs(front_right-front_left) < 60) && (front_left > 200 &&  front_right > 200)) //experiment threshold
 			{
 				m_green(ON);
 				m_red(ON);
@@ -911,10 +810,11 @@ int main(void)
 			break;
 			
 			case GO_TO_PUCK:
+			m_red(ON);
 			//if we're still seeing the PUCK
-			if(abs(front_right-front_left) < epsilon && (front_left + front_right) > threshold) {
-				left_PWM(50);
-				right_PWM(50);
+			if((abs(front_right-front_left) < 60) && (front_left > 200 &&  front_right > 200)) {
+				left_PWM(26);
+				right_PWM(26);
 				go('f');
 			}
 			else
@@ -923,25 +823,29 @@ int main(void)
 				go('o');
 			}
 			//check to see if we have the puck in the sloot
-			if(puck_eyes   > 840){ puck_eyes_add++;}
-			if(puck_eyes_2 > 840){ puck_eyes_add++;}
-			if(puck_eyes_3 > 840){ puck_eyes_add++;}
-			if(puck_eyes_add >= 2) // put in an actual pin to detect puck in sloot
+			puck_eyes_add = 0;
+			if(puck_eyes   > 900){ puck_eyes_add++;}
+			if(puck_eyes_2 > 900){ puck_eyes_add++;}
+			if(puck_eyes_3 > 900){ puck_eyes_add++;}
+			if(puck_eyes_add >= 2 ) // put in an actual pin to detect puck in sloot
 			{
 				state = WITH_PUCK;
 				puck_eyes_add = 0;
 			}
+			puck_eyes_add = 0;
 			break;
 			
 			case WITH_PUCK:
+			m_green(ON);
+			m_red(OFF);
 			//turn to goal
 			buylocal();
 			
 			//          UP 0
-			/*	 /-----------------------\
+		/*	 /-----------------------\
 			|						 |
-			Left |						 | Right
-			-90	 |						 |	90
+		Left|						 | Right
+		-90	|						 |	90
 			|						 |
 			\-----------------------/
 			*/
@@ -952,20 +856,20 @@ int main(void)
 				//experiment, need to check all these values
 				if (abs(theta) < 88)
 				{
-					left_PWM(50);
-					right_PWM(45);
+					left_PWM(28);
+					right_PWM(25);
 					go('f');
 				}
 				else if (abs(theta) > 92)
 				{
-					left_PWM(45);
-					right_PWM(50);
+					left_PWM(25);
+					right_PWM(28);
 					go('f');
 				}
 				else
 				{	//I mean why not? lololol
-					left_PWM(60);
-					right_PWM(60);
+					left_PWM(50);
+					right_PWM(50);
 					go('f');
 				}
 				break;
@@ -973,32 +877,34 @@ int main(void)
 				case LEFT:
 				if (-abs(theta) > -88)
 				{
-					left_PWM(45);
-					right_PWM(50);
+					left_PWM(25);
+					right_PWM(28);
 					go('f');
 				}
 				else if (-abs(theta) < -92)
 				{
-					left_PWM(50);
-					right_PWM(45);
+					left_PWM(28);
+					right_PWM(25);
 					go('f');
 				}
 				else
 				{	//I mean why not? lololol
-					left_PWM(60);
-					right_PWM(60);
+					left_PWM(50);
+					right_PWM(50);
 					go('f');
 				}
 				break;
 			}
-			if(puck_eyes > 840){ puck_eyes_add++;}
-			if(puck_eyes_2 > 840){ puck_eyes_add++;}
-			if(puck_eyes_3 > 840){ puck_eyes_add++;}
-			if(puck_eyes_add < 2) //put in an actual pin here for puck //experiment
+			puck_eyes_add = 0;
+			if(puck_eyes   < 900){ puck_eyes_add++;}
+			if(puck_eyes_2 < 900){ puck_eyes_add++;}
+			if(puck_eyes_3 < 900){ puck_eyes_add++;}
+			if(puck_eyes_add >= 2) //put in an actual pin here for puck //experiment
 			{
 				state = POINT_TO_PUCK;
 				puck_eyes_add = 0;
 			}
+			puck_eyes_add = 0;
 			break;
 			
 			case CONTROL:
@@ -1010,44 +916,52 @@ int main(void)
 				state  = PAUSE;
 				} else if (buffer[0] == 0xA4) {
 				state = PAUSE;
-				} else if (buffer[0] == 0xA6 || buffer[0] == 0xA7) {
+				} else if (buffer[0] == 0xA6) {
+				state = HALFTIME;
+				} else if (buffer[0] == 0xA7) {
 				state = PAUSE;
 			}
 			break;
 			
 			case COMM_TEST:
 			//flash blue LED
-			clear(PORTF,6);
+			m_red(ON);
 			m_wait(1000);
-			set(PORTF,6);
+			clear(PORTF,led);
+			m_red(OFF);
 			m_wait(1000);
-			clear(PORTF,6);
+			set(PORTF,led);
+			m_red(ON);
+			m_wait(1000);
+			clear(PORTF,led);
+			m_red(OFF);
 			state = PAUSE;
 			break;
 			
 			case PLAY:
 			//for now just look for puck!
-			m_red(ON);
 			state = LOOKING_FOR_PUCK;
-			if(check(PINB,2))
+			/*if(check(PIND,5))
 			{
-				set(PORTF,6);//red
+			set(PORTF,6);//red
 			}
 			else
-			{	
-				set(PORTF,7);//blue
-			}
+			{
+			set(PORTF,7);//blue
+			}*/
+			set(PORTF,led);
 			break;
 			
 			case PAUSE:
-			if(check(PINB,2))
+			/*if(check(PIND,6))
 			{
-				clear(PORTF,6);//red
+			clear(PORTF,6);//red
 			}
 			else
 			{
-				clear(PORTF,7);//blue
-			}
+			clear(PORTF,7);//blue
+			}*/
+			clear(PORTF,led);
 			go('o');
 			left_PWM(0);
 			right_PWM(0);
@@ -1057,6 +971,7 @@ int main(void)
 			go('o');
 			left_PWM(0);
 			right_PWM(0);
+			led = 6;
 			break;
 		}
 	}
@@ -1068,38 +983,49 @@ ISR(ADC_vect)
 	switch(adc)	{
 		case F0:
 		back_left = ADC;
-		set(ADMUX,MUX0);
+		set  (ADMUX,MUX0);
+		clear(ADMUX,MUX1);
+		clear(ADMUX,MUX2);
+		clear(ADMUX,MUX5);
 		adc = F1;
 		break;
 		
 		case F1:
-		back_right = ADC;
-		set(ADMUX,MUX2);
+		front_right = ADC;
 		clear(ADMUX,MUX0);
+		clear(ADMUX,MUX1);
+		set  (ADMUX,MUX2);
+		clear(ADMUX,MUX5);
 		adc = F4;
 		break;
 		
 		case F4:
 		front_left = ADC;
-		set(ADMUX,MUX0);
+		set  (ADMUX,MUX0);
+		clear(ADMUX,MUX1);
+		set  (ADMUX,MUX2);
+		clear(ADMUX,MUX5);
 		adc = F5;
 		break;
 		
 		case F5:
-		front_right = ADC;
-		set(ADMUX,MUX1);
-		set(ADMUX,MUX5);
-		adc = B4;
+		back_right = ADC;
+		clear(ADMUX,MUX0);
+		clear(ADMUX,MUX1);
+		set  (ADMUX,MUX2);
+		set  (ADCSRB,MUX5);
+		adc = B5;
 		break;
 		
-		case B4:
+		case B5:
+		
 		puck_eyes_3 = puck_eyes_2;
 		puck_eyes_2 = puck_eyes;
 		puck_eyes = ADC;
 		clear(ADMUX,MUX0);
 		clear(ADMUX,MUX1);
 		clear(ADMUX,MUX2);
-		clear(ADMUX,MUX5);
+		clear(ADCSRB,MUX5);
 		adc = F0;
 		break;
 	}
@@ -1112,5 +1038,6 @@ ISR(INT2_vect)
 {
 	m_rf_read(buffer,PACKET_LENGTH);
 	state = CONTROL;
+	m_red(ON);
 	//save old state??
 }
