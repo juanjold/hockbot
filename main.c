@@ -720,7 +720,7 @@ int main(void){
 	//   if(check(PIND,5)) //change to actual pin // PIN D5 sets the goal
 	//    {
 	//blue LED indicates right goal
-	goal = RIGHT;
+	goal = LEFT;
 	set(PORTF,7);//blue
 	m_wait(2000);
 	clear(PORTF,7);
@@ -732,6 +732,9 @@ int main(void){
 			left_PWM(26);
 			right_PWM(26);
 			go('l');
+			m_wait(500);
+			go('o');
+			m_wait(500);
 					/*	m_usb_tx_string("F0: ");
 						m_usb_tx_int(back_left);
 						m_usb_tx_string("    | F1: ");
@@ -781,7 +784,32 @@ int main(void){
 			}
 			
 			//idk about this threshold //experiment
-			else if(front_right > threshold || front_left > threshold)
+			if(front_right > 200 && front_right < 400 || front_left > 200 && front_left < 400)
+			{
+				//turn right if it's to the right
+				if(front_right > front_left)
+				{
+					left_PWM(50);
+					right_PWM(25);
+					go('f');
+					m_wait(200);
+					go('o');
+					m_wait(200);
+					go('f');
+				}
+				//
+				else if (front_left > front_right)
+				{
+					left_PWM(25);
+					right_PWM(50);
+					go('f');
+					m_wait(200);
+					go('o');
+					m_wait(200);
+					go('f');
+				}
+			}
+			else if(front_right >= 400 || front_left >= 400)
 			{
 				//turn right if it's to the right
 				if(front_right > front_left)
@@ -856,14 +884,22 @@ int main(void){
 				//experiment, need to check all these values
 				if (abs(theta) < 88)
 				{
-					left_PWM(28);
+					left_PWM(35);
 					right_PWM(25);
+					go('f');
+					m_wait(200);
+					go('o');
+					m_wait(200);
 					go('f');
 				}
 				else if (abs(theta) > 92)
 				{
 					left_PWM(25);
-					right_PWM(28);
+					right_PWM(35);
+					go('f');
+					m_wait(200);
+					go('o');
+					m_wait(200);
 					go('f');
 				}
 				else
@@ -878,13 +914,21 @@ int main(void){
 				if (-abs(theta) > -88)
 				{
 					left_PWM(25);
-					right_PWM(28);
+					right_PWM(35);
+					go('f');
+					m_wait(200);
+					go('o');
+					m_wait(200);
 					go('f');
 				}
 				else if (-abs(theta) < -92)
 				{
-					left_PWM(28);
+					left_PWM(35);
 					right_PWM(25);
+					go('f');
+					m_wait(200);
+					go('o');
+					m_wait(200);
 					go('f');
 				}
 				else
@@ -971,7 +1015,7 @@ int main(void){
 			go('o');
 			left_PWM(0);
 			right_PWM(0);
-			led = 6;
+			goal = RIGHT;
 			break;
 		}
 	}
