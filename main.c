@@ -729,17 +729,20 @@ int main(void){
         
         //for testing the DIP switch
         while (1) {
-            clear(DDRB,1);
-            set(PORTB,1);
-            m_red(ON);
-            m_green(ON);
+            clear(DDRB,1);//input switch 1
+            set(PORTB,1);//internal pullup
+            clear(DDRB,2);//input switch 2
+            set(PORTB,2);//internal pullup
             
             if (check(PINB,1)) {
-                set(PORTF,7);//blue
-                clear(PORTF,6);
+                set(PORTF,7);
             } else {
                 clear(PORTF,7);
+            }
+            if (check(PINB,2)) {
                 set(PORTF,6);
+            } else {
+                clear(PORTF,6);
             }
             
         }
