@@ -726,6 +726,24 @@ int main(void){
 	clear(PORTF,7);
 
 	while (1) {
+        
+        //for testing the DIP switch
+        while (1) {
+            clear(DDRB,1);
+            set(PORTB,1);
+            m_red(ON);
+            m_green(ON);
+            
+            if (check(PINB,1)) {
+                set(PORTF,7);//blue
+                clear(PORTF,6);
+            } else {
+                clear(PORTF,7);
+                set(PORTF,6);
+            }
+            
+        }
+        
 		switch(state) {
 			case LOOKING_FOR_PUCK:
 			//do something. for now, rotate in place.
